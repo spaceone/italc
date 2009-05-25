@@ -1,8 +1,8 @@
 /*
- * client.h - declaration of class client which represents a client, shows its
- *            display and allows controlling it in several ways
+ * client.h - declaration of class Client which represents data and
+ *            functionality of a client
  *
- * Copyright (c) 2004-2008 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -29,180 +29,28 @@
 
 #include <italcconfig.h>
 
-#include <QtCore/QHash>
-#include <QtCore/QMutex>
-#include <QtCore/QThread>
-#include <QtCore/QQueue>
-#include <QtCore/QVector>
-#include <QtGui/QWidget>
-#include <QtGui/QImage>
-#include <QtGui/QMenu>
-
-#include "fast_qimage.h"
-
-class classRoom;
-class classRoomItem;
-class client;
-class isdConnection;
-class ivsConnection;
-class mainWindow;
+#include <QtCore/QList>
+#include <QtCore/QObject>
+#include <QtCore/QPoint>
 
 
-typedef void( client:: * execCmd )( const QString & );
-
-const QString CONFIRM_NO = "n";
-const QString CONFIRM_YES = "y";
+class ItalcCoreConnection;
+class ItalcVncConnection;
 
 
-class updateThread : public QThread
+class Client : public QObject
 {
 	Q_OBJECT
 public:
-	enum queueableCommands
+	enum Types
 	{
-		Cmd_ResetConnection,
-		Cmd_StartDemo,
-		Cmd_StopDemo,
-		Cmd_LockScreen,
-		Cmd_UnlockScreen,
-		Cmd_SendTextMessage,
-		Cmd_LogonUser,
-		Cmd_LogoutUser,
-		Cmd_Reboot,
-		Cmd_PowerDown,
-		Cmd_ExecCmds
+		Type_Student,
+		Type_Teacher,
+		Type_Other
 	} ;
+	typedef Types Type;
 
-	updateThread( client * _client );
-	virtual ~updateThread()
-	{
-	}
-
-	inline void enqueueCommand( queueableCommands _cmd,
-					const QVariant & _data =
-							QVariant() )
-	{
-		m_queueMutex.lock();
-		m_queue.enqueue( qMakePair( _cmd, _data ) );
-		m_queueMutex.unlock();
-	}
-
-
-private slots:
-	void update( void );
-
-
-private:
-	virtual void run( void );
-
-	client * m_client;
-	QMutex m_queueMutex;
-	typedef QPair<queueableCommands, QVariant> queueItem;
-	QQueue<queueItem> m_queue;
-
-	friend class client;
-
-} ;
-
-
-
-
-class clientAction : public QAction
-{
-	Q_OBJECT
-public:
-	enum type
-	{
-		Overview,
-		FullscreenDemo,
-		WindowDemo,
-		Locked,
-		ViewLive,
-		RemoteControl,
-		ClientDemo,
-		SendTextMessage,
-		LogonUser,
-		LogoutUser,
-		Snapshot,
-		PowerOn,
-		Reboot,
-		PowerDown,
-		ExecCmds,
-		RemoteScript,
-		LocalScript
-	} ;
-
-	enum targetGroup
-	{
-		Default,
-		SelectedClients,
-		VisibleClients
-	} ;
-
-	enum flags
-	{
-		None = 0,
-		FullMenu = 1
-	} ;
-
-	clientAction( type _type, QObject * _parent = 0, int _flags = 0 );
-	clientAction( type _type, const QIcon & _icon, const QString & _text,
-			QObject * _parent = 0, int _flags = 0 );
-	~clientAction() {};
-
-	void process( QVector<client *> _clients, targetGroup _target = Default );
-	static void process( QAction * _action,
-			QVector<client *> _clients, targetGroup _target = Default );
-
-	inline bool flags( int _mask = -1 )
-	{
-		return ( m_flags & _mask );
-	}
-
-private:
-	type m_type;
-	int m_flags;
-
-	bool confirmLogout( targetGroup _target ) const;
-	bool confirmReboot( targetGroup _target ) const;
-	bool confirmPowerDown( targetGroup _target ) const;
-	QString dataExpanded( QVector<client *> _clients ) const;
-
-} ;
-
-
-
-
-class clientMenu : public QMenu
-{
-	Q_OBJECT
-public:
-	static const bool FullMenu = TRUE;
-
-	clientMenu( const QString & _title, const QList<QAction *> _actions,
-			QWidget * _parent = 0, const bool _fullMenu = FALSE );
-
-	virtual ~clientMenu() {};
-
-	static QMenu * createDefault( QWidget * _parent );
-} ;
-
-
-
-
-inline QPixmap scaledIcon( const char * _name )
-{
-	return scaled( QString( ":/resources/" ) + _name, 16, 16 );
-}
-
-
-
-
-class client : public QWidget
-{
-	Q_OBJECT
-public:
-	enum modes
+	enum Modes
 	{
 		Mode_Overview,
 		Mode_FullscreenDemo,
@@ -210,49 +58,112 @@ public:
 		Mode_Locked,
 		Mode_Unknown
 	} ;
+	typedef Modes Mode;
 
-	enum states
+	enum States
 	{
+		State_Inactive,
 		State_Unreachable,
 		State_NoUserLoggedIn,
-		State_Overview,
-		State_Demo,
-		State_Locked,
+		State_Operating,
 		State_Unkown
 	} ;
+	typedef States State;
 
-	enum types
+	Client( const QString & _host,
+		const QString & _mac,
+		const QString & _displayName,
+		Type _type );
+
+	virtual ~Client();
+
+	inline Type type( void ) const
 	{
-		Type_Student,
-		Type_Teacher,
-		Type_Other
-	} ;
+		return m_type;
+	}
 
-	client( const QString & _hostname,
-		const QString & _mac, const QString & _name, types _type,
-		classRoom * _class_room, mainWindow * _main_window,
-								int _id = -1 );
-
-	virtual ~client();
-
-	void quit( void );
-
-
-	int id( void ) const;
-	static client * clientFromID( int _id );
-
-
-	inline modes mode( void ) const
+	inline void setType( Types _type )
 	{
-		return( m_mode );
+		if( _type >= Type_Student && _type <= Type_Other )
+		{
+			m_type = _type;
+		}
+	}
+
+	inline Mode mode( void ) const
+	{
+		return m_mode;
+	}
+
+	inline State state( void ) const
+	{
+		return m_state;
+	}
+
+	inline QString displayName( void ) const
+	{
+		return m_displayName.isEmpty() ? m_host : m_displayName;
+	}
+
+	inline const QString & host( void ) const
+	{
+		return m_host;
+	}
+
+	inline const QString & mac( void ) const
+	{
+		return m_mac;
+	}
+
+	inline const QString & user( void ) const
+	{
+		return m_user;
+	}
+
+	inline bool isSelected( void ) const
+	{
+		return m_selected;
+	}
+
+	inline void setSelected( bool _s )
+	{
+		m_selected = _s;
+	}
+
+	inline void setDisplayName( const QString & _displayName )
+	{
+		m_displayName = _displayName;
+	}
+
+	inline void setHost( const QString & _host )
+	{
+		m_host = _host;
+	}
+
+	inline void setMac( const QString & _mac )
+	{
+		m_mac = _mac;
+	}
+
+	inline const QPoint & rasterPosition( void ) const
+	{
+		return m_rasterPosition;
+	}
+
+	void openConnection( void );
+	void closeConnection( void );
+
+	void update( void )
+	{
+		emit updated();
 	}
 
 	// action-handlers
-	void changeMode( const modes _new_mode );
+	void changeMode( const Mode _new_mode );
 	void viewLive( void );
 	void remoteControl( void );
 	void clientDemo( void );
-	void sendTextMessage( const QString & _msg );
+	void displayTextMessage( const QString & _msg );
 	void logonUser( const QString & _username, const QString & _password,
 			const QString & _domain );
 	void logoutUser( void );
@@ -261,150 +172,38 @@ public:
 	void reboot( void );
 	void powerDown( void );
 	void execCmds( const QString & _cmds );
-	void reload( void );
-
-
-	inline QString name( void ) const
-	{
-		return( m_nickname.isEmpty() ? m_hostname : m_nickname );
-	}
-
-	inline const QString & hostname( void ) const
-	{
-		return( m_hostname );
-	}
-
-	inline const QString & nickname( void ) const
-	{
-		return( m_nickname );
-	}
-
-	inline const QString & mac( void ) const
-	{
-		return( m_mac );
-	}
-
-	inline types type( void ) const
-	{
-		return( m_type );
-	}
-
-	inline const QString & user( void ) const
-	{
-		return( m_user );
-	}
-
-	inline void setNickname( const QString & _nickname )
-	{
-		m_nickname = _nickname;
-	}
-
-	inline void setHostname( const QString & _hostname )
-	{
-		m_hostname = _hostname;
-	}
-
-	inline void setMac( const QString & _mac )
-	{
-		m_mac = _mac;
-	}
-
-	inline void setType( types _type )
-	{
-		if( _type >= Type_Student && _type <= Type_Other )
-		{
-			m_type = _type;
-		}
-	}
-
-	void setClassRoom( classRoom * _cr );
-
-	void resetConnection( void );
-
-	virtual void update( void );
-
-	static inline bool reloadSnapshotList( void )
-	{
-		return( s_reloadSnapshotList );
-	}
-
-	static inline void resetReloadOfSnapshotList( void )
-	{
-		s_reloadSnapshotList = FALSE;
-	}
-
-
-	void zoom( void );
-	void zoomBack( void );
-
-
-	float m_rasterX;
-	float m_rasterY;
-
-
-public slots:
-
-
-private slots:
-	void enlarge( void );
 
 
 private:
-	bool userLoggedIn( void );
-
-	virtual void contextMenuEvent( QContextMenuEvent * _cme );
-	virtual void closeEvent( QCloseEvent * _ce );
-	virtual void hideEvent( QHideEvent * _he );
-	virtual void mousePressEvent( QMouseEvent * _me );
-	virtual void mouseMoveEvent( QMouseEvent * _me );
-	virtual void mouseReleaseEvent( QMouseEvent * _me );
-	virtual void mouseDoubleClickEvent( QMouseEvent * _me );
-	virtual void paintEvent( QPaintEvent * _pe );
-	virtual void resizeEvent( QResizeEvent * _re );
-	virtual void showEvent( QShowEvent * _se );
+	States currentState( void ) const;
 
 
-	states currentState( void ) const;
+	Types m_type;
+	Modes m_mode;
+	States m_state;
 
+	ItalcVncConnection * m_vncConn;
+	ItalcCoreConnection * m_coreConn;
 
-	mainWindow * m_mainWindow;
-	ivsConnection * m_connection;
-	QPoint m_clickPoint;
-	QPoint m_origPos;
-	QSize m_origSize;
-
-	QString m_hostname;
-	QString m_nickname;
+	QString m_displayName;
+	QString m_host;
 	QString m_mac;
-	types m_type;
-	int m_reloadsAfterReset;
-
-	modes m_mode;
 	QString m_user;
-	volatile bool m_makeSnapshot;
 
-	states m_state;
+	bool m_selected;
 
-	QMutex m_syncMutex;
+	bool m_makeSnapshot;
 
-	classRoomItem * m_classRoomItem;
-
-	updateThread * m_updateThread;
+	QPoint m_rasterPosition;
 
 
-	// static data
-	static bool s_reloadSnapshotList;
-
-	static QHash<int, client *> s_clientIDs;
-
-	// static members
-	static int freeID( void );
-
-
-	friend class updateThread;
-	friend class classRoomItem;
+signals:
+	void updated();
 
 } ;
+
+
+typedef QList<Client *> ClientList;
 
 
 #endif

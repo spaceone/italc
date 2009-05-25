@@ -27,95 +27,39 @@
 #define _MAIN_WINDOW_H
 
 #include <QtCore/QReadWriteLock>
-#include <QtCore/QThread>
 #include <QtGui/QButtonGroup>
 #include <QtGui/QMainWindow>
 #include <QtGui/QSystemTrayIcon>
 #include <QtGui/QToolButton>
 
-#include "client.h"
-#include "snapshot_list.h"
+#include "Client.h"
+#include "SnapshotList.h"
 
 
-class QMenu;
-class QScrollArea;
+class QGraphicsScene;
 class QSplashScreen;
 class QSplitter;
-class classroomManager;
-class configWidget;
-class toolBar;
-class italcSideBar;
-class isdConnection;
-class overviewWidget;
-class remoteControlWidget;
-class userList;
-
-extern QString __default_domain;
-extern int __demo_quality;
+class ItalcCoreConnection;
+class ClassroomManager;
+class ConfigWidget;
+class ToolBar;
+class ItalcSideBar;
+class OverviewWidget;
+class RemoteControlWidget;
+class UserList;
 
 
-class mainWindow;
 
-
-class mainWindowUpdateThread : public QThread
+class MainWindow : public QMainWindow
 {
 	Q_OBJECT
 public:
-	mainWindowUpdateThread( mainWindow * _main_window );
+	MainWindow( int _screen );
+	virtual ~MainWindow();
 
-private slots:
-	void update( void );
-
-private:
-	virtual void run( void );
-
-	mainWindow * m_mainWindow;
-
-} ;
-
-
-class clientWorkspace : public QWidget
-{
-public:
-	clientWorkspace( QScrollArea * _parent );
-	virtual ~clientWorkspace()
+	QGraphicsScene * workspace( void )
 	{
-	}
-
-	virtual QSize sizeHint( void ) const;
-
-
-private:
-	virtual void contextMenuEvent( QContextMenuEvent * _event );
-
-	QMenu * m_contextMenu;
-
-	friend class mainWindow;
-
-} ;
-
-
-
-class mainWindow : public QMainWindow
-{
-	Q_OBJECT
-public:
-	mainWindow( int _screen );
-	virtual ~mainWindow();
-
-	QWidget * workspace( void )
-	{
-		return( m_workspace );
-	}
-
-	classroomManager * getClassroomManager( void )
-	{
-		return( m_classroomManager );
-	}
-
-	isdConnection * localISD( void )
-	{
-		return( m_localISD );
+		return m_workspace;
 	}
 
 	void checkModeButton( int _id )
@@ -124,35 +68,30 @@ public:
 						m_modeGroup->button( _id ) );
 		if( btn != NULL )
 		{
-			btn->setChecked( TRUE );
+			btn->setChecked( true );
 		}
 	}
 
-	inline toolBar * getToolBar( void )
+	inline ToolBar * getToolBar( void )
 	{
-		return( m_toolBar );
+		return m_toolBar;
 	}
 
-	inline italcSideBar * getSideBar( void )
+	inline ItalcSideBar * getSideBar( void )
 	{
-		return( m_sideBar );
+		return m_sideBar;
 	}
 
 	static bool ensureConfigPathExists( void );
 
-	static inline bool atExit( void )
-	{
-		return( s_atExit );
-	}
-
 	void remoteControlDisplay( const QString & _hostname,
-					bool _view_only = FALSE,
-					bool _stop_demo_afterwards = FALSE );
+					bool _view_only = false,
+					bool _stop_demo_afterwards = false );
 
 	inline bool remoteControlRunning( void )
 	{
 		QReadLocker rl( &m_rctrlLock );
-		return( m_remoteControlWidget != NULL );
+		return m_remoteControlWidget != NULL;
 	}
 
 	inline void reloadSnapshotList( void )
@@ -176,60 +115,52 @@ private slots:
 
 	void mapOverview( void )
 	{
-		changeGlobalClientMode( client::Mode_Overview );
+		changeGlobalClientMode( Client::Mode_Overview );
 	}
 	void mapFullscreenDemo( void )
 	{
-		changeGlobalClientMode( client::Mode_FullscreenDemo );
+		changeGlobalClientMode( Client::Mode_FullscreenDemo );
 	}
 	void mapWindowDemo( void )
 	{
-		changeGlobalClientMode( client::Mode_WindowDemo );
+		changeGlobalClientMode( Client::Mode_WindowDemo );
 	}
 	void mapScreenLock( void )
 	{
-		changeGlobalClientMode( client::Mode_Locked );
+		changeGlobalClientMode( Client::Mode_Locked );
 	}
 
 
 private:
 	virtual void closeEvent( QCloseEvent * _ce );
 
-	mainWindowUpdateThread * m_updateThread;
-
-	clientWorkspace * m_workspace;
+	QGraphicsScene * m_workspace;
 
 	QButtonGroup * m_modeGroup;
 
-	toolBar * m_toolBar;
+	ToolBar * m_toolBar;
 
 	QList<QAction *> m_sysTrayActions;
 
 	QSplitter * m_splitter;
 
 	QWidget * m_sideBarWidget;
-	italcSideBar * m_sideBar;
+	ItalcSideBar * m_sideBar;
 	int m_openedTabInSideBar;
 
 
-	isdConnection * m_localISD;
-
-
 	QReadWriteLock m_rctrlLock;
-	remoteControlWidget * m_remoteControlWidget;
+	RemoteControlWidget * m_remoteControlWidget;
 	bool m_stopDemo;
 	int m_remoteControlScreen;
 
-	overviewWidget * m_overviewWidget;
-	classroomManager * m_classroomManager;
-	userList * m_userList;
-	snapshotList * m_snapshotList;
-	configWidget * m_configWidget;
+	OverviewWidget * m_overviewWidget;
+	ClassroomManager * m_classroomManager;
+	UserList * m_userList;
+	SnapshotList * m_snapshotList;
+	ConfigWidget * m_configWidget;
 
-	static bool s_atExit;
-
-	friend class mainWindowUpdateThread;
-	friend class classroomManager;
+	friend class ClassroomManager;
 
 } ;
 
