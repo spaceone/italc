@@ -1,7 +1,7 @@
 /*
  * ClassroomManager.h - declaration of ClassroomManager
  *
- * Copyright (c) 2004-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -41,35 +41,35 @@ public:
 	virtual ~ClassroomManager();
 
 
-	ClientList activeClients( void ) const;
+	ClientList activeClients() const;
 
-	const ClassroomList & classrooms( void ) const
+	const ClassroomList & classrooms() const
 	{
 		return m_classrooms;
 	}
 
-	Client::Modes globalClientMode( void ) const
+	Client::Modes globalClientMode() const
 	{
 		return m_globalClientMode;
 	}
 
 
 public slots:
-	void updateClients( void );
+	void updateClients();
 
 	// slots for toolbar-actions
 	void changeGlobalClientMode( int );
-	void sendMessage( void );
-	void powerOnClients( void );
-	void powerDownClients( void );
-	void remoteLogon( void );
-	void directSupport( void );
+	void sendMessage();
+	void powerOnClients();
+	void powerDownClients();
+	void remoteLogon();
+	void directSupport();
 
 	// slots for actions in view-menu
-	void adjustWindows( void );
+	void adjustWindows();
 	void arrangeWindowsToggle( bool _on );
-	void increaseClientSize( void );
-	void decreaseClientSize( void );
+	void increaseClientSize();
+	void decreaseClientSize();
 
 	// slots for config-widget in side-bar
 	void updateIntervalChanged( int _value );

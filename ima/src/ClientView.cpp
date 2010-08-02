@@ -47,6 +47,7 @@ const QSize CONTENT_SIZE_SUB( 2*DECO_WIDTH, 2*DECO_WIDTH + TITLE_HEIGHT );
 
 
 ClientView::ClientView( Client * _c ) :
+	QGraphicsPixmapItem(),
 	m_client( _c ),
 	m_clickPoint( -1, -1 ),
 	m_origPos( -1, -1 )
@@ -68,6 +69,20 @@ void ClientView::contextMenuEvent( QGraphicsSceneContextMenuEvent * )
 {
 	/* classRoomManager handles ClientMenu */
 //	m_mainWindow->getClassroomManager()->clientMenuRequest();
+}
+
+
+
+
+void ClientView::zoom()
+{
+}
+
+
+
+
+void ClientView::zoomBack()
+{
 }
 
 

@@ -1,7 +1,7 @@
 /*
- * main_window.h - main-window of iTALC
+ * MainWindow.h - main-window of iTALC
  *
- * Copyright (c) 2004-2008 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,7 +22,6 @@
  *
  */
 
-
 #ifndef _MAIN_WINDOW_H
 #define _MAIN_WINDOW_H
 
@@ -31,6 +30,8 @@
 #include <QtGui/QMainWindow>
 #include <QtGui/QSystemTrayIcon>
 #include <QtGui/QToolButton>
+
+#include "ui_MainWindow.h"
 
 #include "Client.h"
 #include "SnapshotList.h"
@@ -42,22 +43,20 @@ class QSplitter;
 class ItalcCoreConnection;
 class ClassroomManager;
 class ConfigWidget;
-class ToolBar;
-class ItalcSideBar;
 class OverviewWidget;
 class RemoteControlWidget;
 class UserList;
 
 
 
-class MainWindow : public QMainWindow
+class MainWindow : public QMainWindow, public Ui::MainWindow
 {
 	Q_OBJECT
 public:
 	MainWindow( int _screen );
 	virtual ~MainWindow();
 
-	QGraphicsScene * workspace( void )
+	QGraphicsScene * workspace()
 	{
 		return m_workspace;
 	}
@@ -72,29 +71,29 @@ public:
 		}
 	}
 
-	inline ToolBar * getToolBar( void )
+	inline MainToolBar * toolBar()
 	{
 		return m_toolBar;
 	}
 
-	inline ItalcSideBar * getSideBar( void )
+	inline SideBar * sideBar()
 	{
 		return m_sideBar;
 	}
 
-	static bool ensureConfigPathExists( void );
+	static bool ensureConfigPathExists();
 
 	void remoteControlDisplay( const QString & _hostname,
 					bool _view_only = false,
 					bool _stop_demo_afterwards = false );
 
-	inline bool remoteControlRunning( void )
+	inline bool remoteControlRunning()
 	{
 		QReadLocker rl( &m_rctrlLock );
 		return m_remoteControlWidget != NULL;
 	}
 
-	inline void reloadSnapshotList( void )
+	inline void reloadSnapshotList()
 	{
 		m_snapshotList->reloadList();
 	}
@@ -109,23 +108,23 @@ private slots:
 	void remoteControlClient( QAction * _c );
 	void remoteControlWidgetClosed( QObject * );
 
-	void aboutITALC( void );
+	void aboutITALC();
 
 	void changeGlobalClientMode( int );
 
-	void mapOverview( void )
+	void mapOverview()
 	{
 		changeGlobalClientMode( Client::Mode_Overview );
 	}
-	void mapFullscreenDemo( void )
+	void mapFullscreenDemo()
 	{
 		changeGlobalClientMode( Client::Mode_FullscreenDemo );
 	}
-	void mapWindowDemo( void )
+	void mapWindowDemo()
 	{
 		changeGlobalClientMode( Client::Mode_WindowDemo );
 	}
-	void mapScreenLock( void )
+	void mapScreenLock()
 	{
 		changeGlobalClientMode( Client::Mode_Locked );
 	}
@@ -138,16 +137,10 @@ private:
 
 	QButtonGroup * m_modeGroup;
 
-	ToolBar * m_toolBar;
-
 	QList<QAction *> m_sysTrayActions;
 
-	QSplitter * m_splitter;
-
 	QWidget * m_sideBarWidget;
-	ItalcSideBar * m_sideBar;
 	int m_openedTabInSideBar;
-
 
 	QReadWriteLock m_rctrlLock;
 	RemoteControlWidget * m_remoteControlWidget;

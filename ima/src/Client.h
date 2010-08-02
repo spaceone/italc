@@ -1,8 +1,8 @@
 /*
- * client.h - declaration of class Client which represents data and
- *            functionality of a client
+ * Client.h - declaration of class Client which represents a client, shows its
+ *            display and allows controlling it in several ways
  *
- * Copyright (c) 2004-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -77,7 +77,7 @@ public:
 
 	virtual ~Client();
 
-	inline Type type( void ) const
+	inline Type type() const
 	{
 		return m_type;
 	}
@@ -90,37 +90,37 @@ public:
 		}
 	}
 
-	inline Mode mode( void ) const
+	inline Mode mode() const
 	{
 		return m_mode;
 	}
 
-	inline State state( void ) const
+	inline State state() const
 	{
 		return m_state;
 	}
 
-	inline QString displayName( void ) const
+	inline QString displayName() const
 	{
 		return m_displayName.isEmpty() ? m_host : m_displayName;
 	}
 
-	inline const QString & host( void ) const
+	inline const QString & host() const
 	{
 		return m_host;
 	}
 
-	inline const QString & mac( void ) const
+	inline const QString & mac() const
 	{
 		return m_mac;
 	}
 
-	inline const QString & user( void ) const
+	inline const QString & user() const
 	{
 		return m_user;
 	}
 
-	inline bool isSelected( void ) const
+	inline bool isSelected() const
 	{
 		return m_selected;
 	}
@@ -145,37 +145,37 @@ public:
 		m_mac = _mac;
 	}
 
-	inline const QPoint & rasterPosition( void ) const
+	inline const QPoint & rasterPosition() const
 	{
 		return m_rasterPosition;
 	}
 
-	void openConnection( void );
-	void closeConnection( void );
+	void openConnection();
+	void closeConnection();
 
-	void update( void )
+	void update()
 	{
 		emit updated();
 	}
 
 	// action-handlers
 	void changeMode( const Mode _new_mode );
-	void viewLive( void );
-	void remoteControl( void );
-	void clientDemo( void );
+	void viewLive();
+	void remoteControl();
+	void clientDemo();
 	void displayTextMessage( const QString & _msg );
 	void logonUser( const QString & _username, const QString & _password,
 			const QString & _domain );
-	void logoutUser( void );
-	void snapshot( void );
-	void powerOn( void );
-	void reboot( void );
-	void powerDown( void );
+	void logoutUser();
+	void snapshot();
+	void powerOn();
+	void reboot();
+	void powerDown();
 	void execCmds( const QString & _cmds );
 
 
 private:
-	States currentState( void ) const;
+	States currentState() const;
 
 
 	Types m_type;

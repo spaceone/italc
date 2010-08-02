@@ -1,3 +1,4 @@
+#if 0
 /*
  * classroom_manager.h - include file for classroom-manager
  *
@@ -35,8 +36,8 @@
 #include <QtGui/QCheckBox>
 #include <QtXml/QtXml>
 
-#include "client.h"
-#include "side_bar_widget.h"
+#include "Client.h"
+#include "SideBarWidget.h"
 
 
 
@@ -344,5 +345,7 @@ private:
 
 } ;
 
+
+#endif
 
 #endif

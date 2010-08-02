@@ -1,7 +1,7 @@
 /*
- * MainWindow.cpp - implementation of MainWindow
+ * MainWindow.cpp - implementation of MainWindow class
  *
- * Copyright (c) 2004-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -39,7 +39,6 @@
 #include <QtGui/QMessageBox>
 #include <QtGui/QScrollArea>
 #include <QtGui/QSplashScreen>
-#include <QtGui/QSplitter>
 #include <QtGui/QToolBar>
 #include <QtGui/QToolButton>
 #include <QtGui/QWorkspace>
@@ -49,13 +48,11 @@
 #include "ClassroomManager.h"
 #include "DecoratedMessageBox.h"
 #include "Dialogs.h"
-#include "ItalcSideBar.h"
 #include "MasterCore.h"
 #include "OverviewWidget.h"
 #include "PersonalConfig.h"
 #include "SnapshotList.h"
 #include "ConfigWidget.h"
-#include "ToolBar.h"
 #include "ToolButton.h"
 #include "LocalSystem.h"
 #include "RemoteControlWidget.h"
@@ -64,8 +61,8 @@
 QSystemTrayIcon * __systray_icon = NULL;
 
 
-extern int __isd_port;
-extern QString __isd_host;
+extern int __ivs_port;
+extern QString __ivs_host;
 
 
 bool MainWindow::ensureConfigPathExists( void )
@@ -135,8 +132,9 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 				:
 				QApplication::desktop()->screenNumber( this ) )
 {
+	setupUi( this );
+
 	setWindowTitle( tr( "iTALC" ) + " " + ITALC_VERSION );
-	setWindowIcon( QPixmap( ":/resources/logo.png" ) );
 
 	if( MainWindow::ensureConfigPathExists() == false )
 	{
@@ -152,59 +150,38 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 		return;
 	}
 
-	QWidget * hbox = new QWidget( this );
-	QHBoxLayout * hbox_layout = new QHBoxLayout( hbox );
-	hbox_layout->setMargin( 0 );
-	hbox_layout->setSpacing( 0 );
-
-	// create splitter, which is used for splitting sidebar-workspaces
-	// from main-workspace
-	m_splitter = new QSplitter( Qt::Horizontal, hbox );
-#if QT_VERSION >= 0x030200
-	m_splitter->setChildrenCollapsible( false );
-#endif
-
-	// create sidebar
-	m_sideBar = new ItalcSideBar( ItalcSideBar::VSNET, hbox, m_splitter );
-
+	// configure side bar
+	m_sideBar->setOrientation( Qt::Vertical );
 
 	m_workspace = new QGraphicsScene( this );
 
-	QGraphicsView * workspaceView = new QGraphicsView( m_workspace,
-								m_splitter );
-	workspaceView->setBackgroundRole( QPalette::Dark );
-	workspaceView->setFrameStyle( QFrame::NoFrame );
-	m_splitter->setStretchFactor(
-				m_splitter->indexOf( workspaceView ), 10 );
+	// configure workspace view
+	m_workspaceView->setScene( m_workspace );
+	m_workspaceView->setBackgroundRole( QPalette::Dark );
 
 
-	QWidget * twp = m_sideBar->tabWidgetParent();
 	// now create all sidebar-workspaces
-	m_overviewWidget = new OverviewWidget( this, twp );
-	//m_classroomManager = new ClassroomManager( this, twp );
-	m_snapshotList = new SnapshotList( this, twp );
-	m_configWidget = new ConfigWidget( this, twp );
+	m_overviewWidget = new OverviewWidget( this, m_centralWidget );
+//	m_classroomManager = new ClassroomManager( this, m_centralWidget );
+	m_snapshotList = new SnapshotList( this, m_centralWidget );
+	m_configWidget = new ConfigWidget( this, m_centralWidget );
 
 	// append sidebar-workspaces to sidebar
-	int id = 0;
-	m_sideBar->appendTab( m_overviewWidget, ++id );
-	////m_sideBar->appendTab( m_classroomManager, ++id );
-	m_sideBar->appendTab( m_snapshotList, ++id );
-	m_sideBar->appendTab( m_configWidget, ++id );
-	m_sideBar->setPosition( ItalcSideBar::Left );
-	m_sideBar->setTab( m_openedTabInSideBar, true );
+	m_sideBar->appendTab( m_overviewWidget );
+//	m_sideBar->appendTab( m_classroomManager );
+	m_sideBar->appendTab( m_snapshotList );
+	m_sideBar->appendTab( m_configWidget );
 
-	setCentralWidget( hbox );
-	hbox_layout->addWidget( m_sideBar );
-	hbox_layout->addWidget( m_splitter );
+	m_centralLayout->insertWidget( 0, m_overviewWidget );
+//	m_centralLayout->insertWidget( 0, m_classroomManager );
+	m_centralLayout->insertWidget( 0, m_snapshotList );
+	m_centralLayout->insertWidget( 0, m_configWidget );
 
 
 
 
 	// create the action-toolbar
-	m_toolBar = new ToolBar( tr( "Actions" ), this );
 	m_toolBar->layout()->setSpacing( 4 );
-	m_toolBar->setMovable( false );
 	m_toolBar->setObjectName( "maintoolbar" );
 	m_toolBar->toggleViewAction()->setEnabled( false );
 
@@ -382,11 +359,11 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 		}
 	}
 
-	foreach( KMultiTabBarTab * tab, m_sideBar->tabs() )
+	foreach( QAbstractButton * btn, m_sideBar->tabs() )
 	{
-		if( hidden_buttons.contains( tab->text() ) )
+		if( hidden_buttons.contains( btn->text() ) )
 		{
-			tab->setTabVisible( false );
+			btn->setVisible( false );
 		}
 	}
 */
@@ -514,7 +491,7 @@ void MainWindow::handleSystemTrayEvent( QSystemTrayIcon::ActivationReason _r )
 			QMenu rcm( this );
 			QAction * rc = m.addAction( tr( "Remote control" ) );
 			rc->setMenu( &rcm );
-/*			foreach( client * c,
+/*			foreach( Client * c,
 					m_classroomManager->visibleClients() )
 			{
 				rcm.addAction( c->name() )->

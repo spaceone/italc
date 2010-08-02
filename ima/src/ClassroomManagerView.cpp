@@ -1,7 +1,7 @@
 /*
- * classroom_manager.cpp - implementation of classroom-manager
+ * ClassroomManagerView.cpp - implementation of ClassroomManagerView
  *
- * Copyright (c) 2004-2008 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,7 +22,7 @@
  *
  */
 
-
+#if 0
 #include <italcconfig.h>
 #include <math.h>
 
@@ -45,7 +45,7 @@
 #include <QtXml/QDomDocument>
 
 
-#include "main_window.h"
+#include "MainWindow.h"
 #include "classroom_manager.h"
 #include "client.h"
 #include "dialogs.h"
@@ -2193,4 +2193,5 @@ void classRoomItem::setUser( const QString & _name )
 }
 
 
+#endif
 

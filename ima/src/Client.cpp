@@ -1,8 +1,8 @@
 /*
- * client.cpp - implementation of class Client which represents data and
+ * Client.cpp - implementation of class Client which represents data and
  *              functionality of a client
  *
- * Copyright (c) 2004-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -73,7 +73,15 @@ Client::~Client()
 
 
 
-void Client::closeConnection( void )
+void Client::openConnection()
+{
+	m_vncConn->start();
+}
+
+
+
+
+void Client::closeConnection()
 {
 	changeMode( Mode_Overview );
 	m_vncConn->stop();
@@ -181,7 +189,7 @@ void Client::viewLive()
 
 
 
-void Client::remoteControl( void )
+void Client::remoteControl()
 {
 	changeMode( Mode_Overview );
 
@@ -208,7 +216,7 @@ void Client::logonUser( const QString & _username, const QString & _password,
 
 
 
-void Client::logoutUser( void )
+void Client::logoutUser()
 {
 	m_coreConn->logoutUser();
 }
@@ -233,7 +241,7 @@ void Client::powerOn()
 
 
 
-void Client::reboot( void )
+void Client::reboot()
 {
 	m_coreConn->restartComputer();
 }
@@ -242,7 +250,7 @@ void Client::reboot( void )
 
 
 
-void Client::powerDown( void )
+void Client::powerDown()
 {
 	m_coreConn->powerDownComputer();
 }
@@ -258,7 +266,7 @@ void Client::execCmds( const QString & _cmds )
 
 
 
-Client::States Client::currentState( void ) const
+Client::States Client::currentState() const
 {
 	if( m_vncConn->isRunning() )
 	{
@@ -270,7 +278,5 @@ Client::States Client::currentState( void ) const
 	}
 	return State_Inactive;
 }
-
-
 
 
