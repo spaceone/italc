@@ -31,8 +31,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#else
-#define strncasecmp _strnicmp
 #endif
 #include <errno.h>
 #ifndef WIN32
@@ -54,6 +52,8 @@
 
 #include "minilzo.h"
 #include "tls.h"
+
+#include "ItalcRfbExt.h"
 
 /*
  * rfbClientLog prints a time-stamped message to the log file (stderr).
@@ -564,6 +564,7 @@ ReadSupportedSecurityType(rfbClient* client, uint32_t *result, rfbBool subAuth)
         rfbClientLog("%d) Received security type %d\n", loop, tAuth[loop]);
         if (flag) continue;
         if (tAuth[loop]==rfbVncAuth || tAuth[loop]==rfbNoAuth || tAuth[loop]==rfbMSLogon ||
+			tAuth[loop] == rfbSecTypeItalc ||
             (!subAuth && (tAuth[loop]==rfbTLS || tAuth[loop]==rfbVeNCrypt)))
         {
             if (!subAuth && client->clientAuthSchemes)
@@ -995,6 +996,11 @@ InitialiseRFBConnection(rfbClient* client)
         return FALSE;
     }
 #endif
+    break;
+
+  case rfbSecTypeItalc:
+    handleSecTypeItalc( client );
+    if (!rfbHandleAuthResult(client)) return FALSE;
     break;
 
   default:

@@ -1,7 +1,7 @@
 /*
  * ItalcCore.cpp - implementation of iTALC Core
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,7 +22,6 @@
  *
  */
 
-
 #include <italcconfig.h>
 
 #include <QtCore/QDir>
@@ -35,6 +34,7 @@
 
 static PrivateDSAKey * privDSAKey = NULL;
 
+int ItalcCore::serverPort = PortOffsetIVS;
 ItalcCore::UserRoles ItalcCore::role = ItalcCore::RoleOther;
 
 
@@ -85,7 +85,7 @@ bool ItalcCore::initAuthentication( void )
 
 
 
-int handleSecTypeItalc( rfbClient * _cl )
+void handleSecTypeItalc( rfbClient * _cl )
 {
 	SocketDevice socketDev( libvncClientDispatcher, _cl );
 
@@ -113,10 +113,6 @@ int handleSecTypeItalc( rfbClient * _cl )
 	else if( iat == ItalcAuthNone )
 	{
 	}
-
-	const uint res = socketDev.read().toUInt();
-
-	return res == ItalcAuthOK;
 }
 
 

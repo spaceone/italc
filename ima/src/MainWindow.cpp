@@ -22,7 +22,6 @@
  *
  */
 
-
 #include <italcconfig.h>
 
 #include <QtCore/QDir>
@@ -414,22 +413,11 @@ MainWindow::~MainWindow()
 {
 	//m_classroomManager->doCleanupWork();
 
-#ifdef BUILD_WIN32
-	qApp->processEvents( QEventLoop::AllEvents, 3000 );
-	LocalSystem::sleep( 3000 );
-#endif
-
 	// also delets clients
 	delete m_workspace;
 
 	__systray_icon->hide();
 	delete __systray_icon;
-
-#ifdef BUILD_WIN32
-	qApp->processEvents( QEventLoop::AllEvents, 3000 );
-	LocalSystem::sleep( 3000 );
-	exit( 0 );
-#endif
 }
 
 
@@ -464,7 +452,6 @@ void MainWindow::closeEvent( QCloseEvent * _ce )
 	m_classroomManager->saveGlobalClientConfig();*/
 
 	_ce->accept();
-	deleteLater();
 }
 
 

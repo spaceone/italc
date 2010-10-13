@@ -1,8 +1,8 @@
 /*
- * IVS.h - class IVS, a VNC server abstraction for platform-independent
- *         VNC server usage
+ * IpcSlave.h - class Ipc::Slave providing communication with Ipc::Master
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Univention GmbH
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -23,56 +23,30 @@
  *
  */
 
+#ifndef _IPC_SLAVE_H
+#define _IPC_SLAVE_H
 
-#ifndef _IVS_H
-#define _IVS_H
+#include <QtNetwork/QLocalSocket>
 
-#include <QtCore/QThread>
+#include "Ipc/Core.h"
 
-
-extern int __ivs_port;
-
-
-class IVS : public QThread
+namespace Ipc
 {
+
+class Slave : public QLocalSocket
+{
+	Q_OBJECT
 public:
-	IVS( const quint16 _ivs_port, int _argc, char * * _argv,
-						bool _no_threading = false );
-	virtual ~IVS();
+	Slave( const Ipc::Id &masterId, const Ipc::Id &slaveId );
 
-	quint16 serverPort( void ) const
-	{
-		return( m_port );
-	}
-
-	bool runningInSeparateProcess( void ) const
-	{
-		return m_runningInSeparateProcess;
-	}
-
-#ifdef ITALC_BUILD_LINUX
-	void restart( void )
-	{
-		m_restart = true;
-	}
-#endif
+	virtual bool handleMessage( const Ipc::Msg &msg ) = 0;
 
 
-private:
-	virtual void run( void );
+private slots:
+	void receiveMessage();
 
-	int m_argc;
-	char * * m_argv;
+};
 
-	quint16 m_port;
-	bool m_runningInSeparateProcess;
+}
 
-#ifdef ITALC_BUILD_LINUX
-	bool m_restart;
-#endif
-
-} ;
-
-
-#endif
-
+#endif // _IPC_SLAVE_H

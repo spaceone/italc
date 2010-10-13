@@ -54,10 +54,6 @@ class vncServer;
 #include <omnithread.h>
 #include <list>
 
-#define KEEPALIVE_HEADROOM 1
-#define KEEPALIVE_INTERVAL 5
-#define FT_RECV_TIMEOUT    30
-
 // adzm - 2010-07 - Extended clipboard
 #include "common/clipboard.h"
 
@@ -309,7 +305,7 @@ public:
 
 	// Whether or not to allow connections from the local machine
 	virtual void SetLoopbackOk(BOOL ok) {m_loopback_allowed = ok;};
-	virtual BOOL LoopbackOk() {return m_loopback_allowed;};
+	virtual BOOL LoopbackOk() {return TRUE;}//m_loopback_allowed;};
 
 	// Whether or not to shutdown or logoff when the last client leaves
 	virtual void SetLockSettings(int ok) {m_lock_on_exit = ok;};
@@ -432,6 +428,10 @@ public:
     if (m_keepAliveInterval >= (m_ftTimeout - KEEPALIVE_HEADROOM))
         m_keepAliveInterval = m_ftTimeout  - KEEPALIVE_HEADROOM;
     }
+
+	// adzm 2010-08
+	void SetSocketKeepAliveTimeout(int timeout)	{ m_socketKeepAliveTimeout = timeout > 0 ? timeout : 0; VSocket::SetSocketKeepAliveTimeoutDefault(m_socketKeepAliveTimeout); }
+	int GetSocketKeepAliveTimeout() { return m_socketKeepAliveTimeout; }
 
 	void TriggerUpdate();
 
@@ -600,6 +600,8 @@ protected:
     bool m_fEnableKeepAlive;
     int m_ftTimeout;
     int m_keepAliveInterval;
+	// adzm 2010-08
+	int m_socketKeepAliveTimeout;
 	bool clearconsole;
 };
 

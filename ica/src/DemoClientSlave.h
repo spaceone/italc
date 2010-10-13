@@ -1,7 +1,8 @@
 /*
- * types.h - some typedefs
+ * DemoClientSlave.h - an IcaSlave providing the demo window
  *
- * Copyright (c) 2006-2008 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Univention GmbH
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,34 +23,26 @@
  *
  */
 
-#ifndef _TYPES_H
-#define _TYPES_H
+#ifndef _DEMO_CLIENT_SLAVE_H
+#define _DEMO_CLIENT_SLAVE_H
 
-#include <italcconfig.h>
-#include <stdint.h>
+#include "IcaSlave.h"
 
-typedef signed char             Q_INT8;         /* 8 bit signed */
-typedef unsigned char           Q_UINT8;        /* 8 bit unsigned */
-typedef short                   Q_INT16;        /* 16 bit signed */
-typedef unsigned short          Q_UINT16;       /* 16 bit unsigned */
-typedef int32_t			Q_INT32;        /* 32 bit signed */
-typedef uint32_t 		Q_UINT32;       /* 32 bit unsigned */
+class DemoClientSlave : public IcaSlave
+{
+public:
+	static const Ipc::Command StartDemo;
+	static const Ipc::Argument MasterHost;
+	static const Ipc::Argument FullScreen;
 
-
-#ifdef ITALC_BUILD_WIN32
-
-#ifdef BUILD_LIBRARY
-#define IC_DllExport __declspec(dllexport)
-#else
-#define IC_DllExport __declspec(dllimport)
-#endif
+	DemoClientSlave();
+	virtual ~DemoClientSlave();
 
 
-#else
+private:
+	virtual bool handleMessage( const Ipc::Msg &m );
 
-#define IC_DllExport
+} ;
 
 #endif
 
-
-#endif

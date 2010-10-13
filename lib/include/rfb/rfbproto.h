@@ -82,8 +82,10 @@
 #ifdef LIBVNCSERVER_HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
+#ifndef WIN32
 #ifndef SOCKET
 #define SOCKET int
+#endif
 #endif
 typedef int8_t rfbBool;
 #undef FALSE
@@ -321,8 +323,9 @@ typedef char rfbProtocolVersionMsg[13];	/* allow extra byte for null */
  * access to this client by disconnecting all other clients.
  */
 
-typedef struct {
+typedef union {
     uint8_t shared;
+    uint8_t flags;
 } rfbClientInitMsg;
 
 #define sz_rfbClientInitMsg 1
