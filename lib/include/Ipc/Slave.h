@@ -1,7 +1,8 @@
 /*
- * IcaMain.h - declaration of ICAMain and other global stuff
+ * IpcSlave.h - class Ipc::Slave providing communication with Ipc::Master
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Univention GmbH
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,13 +23,30 @@
  *
  */
 
+#ifndef _IPC_SLAVE_H
+#define _IPC_SLAVE_H
 
-#ifndef _ICA_MAIN_H
-#define _ICA_MAIN_H
+#include <QtNetwork/QLocalSocket>
 
-int ICAMain( int _argc, char * * _argv );
+#include "Ipc/Core.h"
 
-extern int __ivs_port;
+namespace Ipc
+{
 
-#endif
+class Slave : public QLocalSocket
+{
+	Q_OBJECT
+public:
+	Slave( const Ipc::Id &masterId, const Ipc::Id &slaveId );
 
+	virtual bool handleMessage( const Ipc::Msg &msg ) = 0;
+
+
+private slots:
+	void receiveMessage();
+
+};
+
+}
+
+#endif // _IPC_SLAVE_H

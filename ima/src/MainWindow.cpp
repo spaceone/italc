@@ -22,7 +22,6 @@
  *
  */
 
-
 #include <italcconfig.h>
 
 #include <QtCore/QDir>
@@ -53,6 +52,8 @@
 #include "PersonalConfig.h"
 #include "SnapshotList.h"
 #include "ConfigWidget.h"
+#include "DecoratedMessageBox.h"
+#include "DemoServerMaster.h"
 #include "ToolButton.h"
 #include "LocalSystem.h"
 #include "RemoteControlWidget.h"
@@ -391,6 +392,9 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 		break;
 	}
 
+	m_demoServerMaster = new DemoServerMaster;
+	m_demoServerMaster->start( PortOffsetIVS, PortOffsetDemoServer );
+
 	QIcon icon( ":/resources/icon16.png" );
 	icon.addFile( ":/resources/icon22.png" );
 	icon.addFile( ":/resources/icon32.png" );
@@ -414,22 +418,13 @@ MainWindow::~MainWindow()
 {
 	//m_classroomManager->doCleanupWork();
 
-#ifdef BUILD_WIN32
-	qApp->processEvents( QEventLoop::AllEvents, 3000 );
-	LocalSystem::sleep( 3000 );
-#endif
-
 	// also delets clients
 	delete m_workspace;
 
+	delete m_demoServerMaster;
+
 	__systray_icon->hide();
 	delete __systray_icon;
-
-#ifdef BUILD_WIN32
-	qApp->processEvents( QEventLoop::AllEvents, 3000 );
-	LocalSystem::sleep( 3000 );
-	exit( 0 );
-#endif
 }
 
 
@@ -464,7 +459,6 @@ void MainWindow::closeEvent( QCloseEvent * _ce )
 	m_classroomManager->saveGlobalClientConfig();*/
 
 	_ce->accept();
-	deleteLater();
 }
 
 

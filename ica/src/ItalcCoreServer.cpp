@@ -1,7 +1,7 @@
 /*
  * ItalcCoreServer.cpp - ItalcCoreServer
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -26,137 +26,30 @@
 #include <italcconfig.h>
 
 #ifdef ITALC_BUILD_WIN32
-
 #define _WIN32_WINNT 0x0501
 #include <windows.h>
 #include <psapi.h>
 #endif
 
-
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
-#include <QtCore/QProcess>
-#include <QtCore/QTemporaryFile>
-#include <QtCore/QTimer>
-#include <QtGui/QMessageBox>
-#include <QtGui/QPushButton>
 #include <QtNetwork/QHostInfo>
-#include <QtNetwork/QTcpSocket>
 
 #include "ItalcCoreServer.h"
 #include "DsaKey.h"
 #include "LocalSystemIca.h"
-#include "IVS.h"
-#include "LockWidget.h"
-#include "DecoratedMessageBox.h"
-#include "DemoClient.h"
-#include "IcaMain.h"
 
 
 ItalcCoreServer * ItalcCoreServer::_this = NULL;
-QList<ItalcCore::Command> ItalcCoreServer::externalActions;
 
 
-
-qint64 qtcpsocketDispatcher( char * _buf, const qint64 _len,
-				const SocketOpCodes _op_code, void * _user )
-{
-	QTcpSocket * sock = static_cast<QTcpSocket *>( _user );
-	qint64 ret = 0;
-	switch( _op_code )
-	{
-		case SocketRead:
-			while( ret < _len )
-			{
-				qint64 bytes_read = sock->read( _buf, _len );
-				if( bytes_read < 0 )
-				{
-	qDebug( "qtcpsocketDispatcher(...): connection closed while reading" );
-					return 0;
-				}
-				else if( bytes_read == 0 )
-				{
-					if( sock->state() !=
-						QTcpSocket::ConnectedState )
-					{
-	qDebug( "qtcpsocketDispatcher(...): connection failed while writing  "
-			"state:%d  error:%d", sock->state(), sock->error() );
-						return 0;
-					}
-					sock->waitForReadyRead( 10 );
-				}
-				ret += bytes_read;
-			}
-			break;
-		case SocketWrite:
-			while( ret < _len )
-			{
-				qint64 written = sock->write( _buf, _len );
-				if( written < 0 )
-				{
-	qDebug( "qtcpsocketDispatcher(...): connection closed while writing" );
-					return 0;
-				}
-				else if( written == 0 )
-				{
-					if( sock->state() !=
-						QTcpSocket::ConnectedState )
-					{
-	qDebug( "qtcpsocketDispatcher(...): connection failed while writing  "
-			"state:%d error:%d", sock->state(), sock->error() );
-						return 0;
-					}
-				}
-				ret += written;
-			}
-			//sock->flush();
-			sock->waitForBytesWritten();
-			break;
-		case SocketGetPeerAddress:
-			strncpy( _buf,
-		sock->peerAddress().toString().toAscii().constData(), _len );
-			break;
-	}
-	return ret;
-}
-
-
-
-
-void ItalcCoreServer::earlyInit( void )
-{
-	externalActions << ItalcCore::StartDemo
-			<< ItalcCore::StopDemo
-			<< ItalcCore::DisplayTextMessage
-			<< ItalcCore::LockDisplay
-			<< ItalcCore::UnlockDisplay;
-
-	// TODO: init pugins
-}
-
-
-
-
-
-ItalcCoreServer::ItalcCoreServer( int _argc, char * * _argv ) :
+ItalcCoreServer::ItalcCoreServer() :
 	QObject(),
-	m_ivs( NULL ),
-	m_demoClient( NULL ),
-	m_lockWidget( NULL )
+	m_allowedIPs(),
+	m_masterProcess()
 {
 	Q_ASSERT( _this == NULL );
 	_this = this;
-
-	QTimer * t = new QTimer( this );
-	connect( t, SIGNAL( timeout() ), this,
-					SLOT( checkForPendingActions() ) );
-	// as things like creating a demo-window, remote-control-view etc. can
-	// only be done by GUI-thread we push all actions into a list and
-	// process this list later in a slot called by the GUI-thread every 500s
-	t->start( 300 );
-
-	m_ivs = new IVS( __ivs_port, _argc, _argv );
-	m_ivs->start(/* QThread::HighPriority*/ );
 }
 
 
@@ -164,17 +57,16 @@ ItalcCoreServer::ItalcCoreServer( int _argc, char * * _argv ) :
 
 ItalcCoreServer::~ItalcCoreServer()
 {
-	delete m_ivs;
-	delete m_lockWidget;
 	_this = NULL;
 }
 
 
 
 
-int ItalcCoreServer::processClient( socketDispatcher _sd, void * _user )
+int ItalcCoreServer::handleItalcClientMessage( socketDispatcher sock,
+												void *user )
 {
-	SocketDevice sdev( _sd, _user );
+	SocketDevice sdev( sock, user );
 
 	// receive message
 	ItalcCore::Msg msgIn( &sdev );
@@ -293,64 +185,59 @@ int ItalcCoreServer::processClient( socketDispatcher _sd, void * _user )
 	}
 	else if( cmd == ItalcCore::DisableLocalInputs )
 	{
-		LocalSystem::disableLocalInputs(
-					msgIn.arg( "disabled" ).toInt() );
+		LocalSystem::disableLocalInputs( msgIn.arg( "disabled" ).toInt() );
 	}
 	else if( cmd == ItalcCore::SetRole )
 	{
 		const int role = msgIn.arg( "role" ).toInt();
 		if( role > ItalcCore::RoleNone && role < ItalcCore::RoleCount )
 		{
-			ItalcCore::role =
-				static_cast<ItalcCore::UserRoles>( role );
-#ifdef ITALC_BUILD_LINUX
-				// under Linux/X11, IVS runs in separate process
-				// therefore we need to restart it with new
-				// role, bad hack but there's no clean solution
-				// for the time being
-				m_ivs->restart();
-#endif
+			ItalcCore::role = static_cast<ItalcCore::UserRoles>( role );
 		}
 	}
-	else if( cmd == ItalcCore::StartDemo ||
-			cmd == ItalcCore::StopDemo ||
-			cmd == ItalcCore::DisplayTextMessage ||
-			cmd == ItalcCore::LockDisplay ||
-			cmd == ItalcCore::UnlockDisplay )
+	else if( cmd == ItalcCore::StartDemo )
 	{
-		// edit arguments if neccessary
-		ItalcCore::CommandArgs args = msgIn.args();
-		if( cmd == ItalcCore::StartDemo )
+		QString host;
+		QString port = msgIn.arg( "port" );
+		if( port.isEmpty() )
 		{
-			QString host;
-			QString port = args["port"].toString();
-			if( port == "" )
-			{
-				port = "5858";
-			}
-			if( !port.contains( ':' ) )
-			{
-				const int MAX_HOST_LEN = 255;
-				char hostArr[MAX_HOST_LEN+1];
-				_sd( hostArr, MAX_HOST_LEN,
-					SocketGetPeerAddress, _user );
-				hostArr[MAX_HOST_LEN] = 0;
-				host = hostArr + QString( ":" ) + port;
-			}
-			else
-			{
-				host = port;
-			}
-			args["host"] = host;
+			port = "11200";	// TODO: convert from global constant
 		}
-		m_actionMutex.lock();
-		m_pendingActions.push_back( qMakePair( cmd, args ) );
-		m_actionMutex.unlock();
+		if( !port.contains( ':' ) )
+		{
+			const int MAX_HOST_LEN = 255;
+			char hostArr[MAX_HOST_LEN+1];
+			sock( hostArr, MAX_HOST_LEN,
+					SocketGetPeerAddress, user );
+			hostArr[MAX_HOST_LEN] = 0;
+			host = hostArr + QString( ":" ) + port;
+		}
+		else
+		{
+			host = port;
+		}
+		m_masterProcess.startDemo( host, msgIn.arg( "fullscreen" ).toInt() );
+	}
+	else if( cmd == ItalcCore::StopDemo )
+	{
+		m_masterProcess.stopDemo();
+	}
+	else if( cmd == ItalcCore::DisplayTextMessage )
+	{
+		m_masterProcess.messageBox( msgIn.arg( "text" ) );
+	}
+	else if( cmd == ItalcCore::LockDisplay )
+	{
+		m_masterProcess.lockDisplay();
+	}
+	else if( cmd == ItalcCore::UnlockDisplay )
+	{
+		m_masterProcess.unlockDisplay();
 	}
 	// TODO: handle plugins
 	else
 	{
-		qCritical() << "ItalcCoreServer::processClient(...): "
+		qCritical() << "ItalcCoreServer::handleItalcClientMessage(...): "
 				"could not handle cmd" << cmd;
 	}
 
@@ -359,237 +246,74 @@ int ItalcCoreServer::processClient( socketDispatcher _sd, void * _user )
 
 
 
-
-bool ItalcCoreServer::authSecTypeItalc( socketDispatcher _sd, void * _user,
-					ItalcAuthTypes _auth_type,
-					const QStringList & _allowedHosts )
+bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 {
 	// find out IP of host - needed at several places
 	const int MAX_HOST_LEN = 255;
 	char host[MAX_HOST_LEN+1];
-	_sd( host, MAX_HOST_LEN, SocketGetPeerAddress, _user );
+	sd( host, MAX_HOST_LEN, SocketGetPeerAddress, user );
 	host[MAX_HOST_LEN] = 0;
 	static QStringList __denied_hosts, __allowed_hosts;
 
-	SocketDevice sdev( _sd, _user );
-	sdev.write( QVariant( (int) _auth_type ) );
+	SocketDevice sdev( sd, user );
 
-	ItalcAuthResults result = ItalcAuthFailed;
+	// send list of supported authentication types - can't use QList<QVariant>
+	// here due to a strange bug in Qt
+	QMap<QString, QVariant> supportedAuthTypes;
+	supportedAuthTypes["ItalcAuthDSA"] = ItalcAuthDSA;
+	supportedAuthTypes["ItalcAuthHostBased"] = ItalcAuthHostBased;
+	sdev.write( supportedAuthTypes );
 
-	ItalcAuthTypes chosen = static_cast<ItalcAuthTypes>(
-							sdev.read().toInt() );
-	if( chosen == ItalcAuthDSA && _auth_type == ItalcAuthLocalDSA )
-	{
-		// this case is ok as well
-	}
-	else if( chosen != _auth_type )
+	uint32_t result = rfbVncAuthFailed;
+	ItalcAuthTypes chosen = static_cast<ItalcAuthTypes>( sdev.read().toInt() );
+	if( !supportedAuthTypes.values().contains( chosen ) )
 	{
 		errorMsgAuth( host );
 		qCritical( "ItalcCoreServer::authSecTypeItalc(...): "
-				"client chose other auth-type than offered!" );
-		return( result );
+				"client chose unsupported authentication type!" );
+		return result;
 	}
-printf("auth sec %d\n", (int)_auth_type );
 
-	switch( _auth_type )
+	switch( chosen )
 	{
 		// no authentication
 		case ItalcAuthNone:
-			result = ItalcAuthOK;
+			result = rfbVncAuthOK;
 			break;
 
 		// host has to be in list of allowed hosts
 		case ItalcAuthHostBased:
-		{
-			if( _allowedHosts.isEmpty() )
+			if( doHostBasedAuth( host ) )
 			{
-				break;
-			}
-			QStringList allowed;
-			foreach( const QString a, _allowedHosts )
-			{
-				const QString h = a.split( ':' )[0];
-				if( !allowed.contains( h ) )
-				{
-					allowed.push_back( h );
-				}
-			}
-			// already valid IP?
-			if( QHostAddress().setAddress( host ) )
-			{
-				if( allowed.contains( host ) )
-				{
-					result = ItalcAuthOK;
-				}
-			}
-			else
-			{
-			// create a list of all known addresses of host
-			QList<QHostAddress> addr =
-					QHostInfo::fromName( host ).addresses();
-			if( !addr.isEmpty() )
-			{
-				// check each address for existence in allowed-
-				// client-list
-				foreach( const QHostAddress a, addr )
-				{
-	if( allowed.contains( a.toString() ) ||
-		a.toString() == QHostAddress( QHostAddress::LocalHost ).toString() )
-					{
-						result = ItalcAuthOK;
-						break;
-					}
-				}
-			}
+				result = rfbVncAuthOK;
 			}
 			break;
-		}
 
 		// authentication via DSA-challenge/-response
-		case ItalcAuthLocalDSA:
 		case ItalcAuthDSA:
-		{
-			// generate data to sign and send to client
-			const QByteArray chall = DsaKey::generateChallenge();
-			sdev.write( QVariant( chall ) );
-
-			// get user-role
-			const ItalcCore::UserRoles urole =
-				static_cast<ItalcCore::UserRoles>(
-							sdev.read().toInt() );
-			if( ItalcCore::role != ItalcCore::RoleOther &&
-					_auth_type != ItalcAuthLocalDSA )
+			if( doKeyBasedAuth( sdev ) )
 			{
-			/*	if( __denied_hosts.contains( host ) )
-				{
-					result = ItalcAuthFailed;
-					break;
-				}
-				if( !__allowed_hosts.contains( host ) )
-				{
-					bool failed = true;
-					switch( doGuiOp( ItalcCore::AccessDialog, host ) )
-					{
-						case AccessAlways:
-							__allowed_hosts += host;
-						case AccessYes:
-							failed = false;
-							break;
-						case AccessNever:
-							__denied_hosts += host;
-						case AccessNo:
-							break;
-					}
-					if( failed )
-					{
-						result = ItalcAuthFailed;
-						break;
-					}
-				}
-				else*/
-				{
-					result = ItalcAuthFailed;
-				}
+				result = rfbVncAuthOK;
 			}
-
-			// now try to verify received signed data using public
-			// key of the user under which the client claims to run
-			const QByteArray sig = sdev.read().toByteArray();
-			// (publicKeyPath does range-checking of urole)
-			PublicDSAKey pub_key( LocalSystem::publicKeyPath(
-								urole ) );
-			result = pub_key.verifySignature( chall, sig ) ?
-						ItalcAuthOK : ItalcAuthFailed;
 			break;
-		}
-	}
-printf("dsa: %d\n", (int)result);
 
-	sdev.write( QVariant( (int) result ) );
-	if( result != ItalcAuthOK )
+		default:
+			break;
+	}
+
+	if( result != rfbVncAuthOK )
 	{
 		errorMsgAuth( host );
+		return false;
 	}
 
-	return( result == ItalcAuthOK );
+	return true;
 }
 
 
 
 
-int ItalcCoreServer::doGuiOp( const ItalcCore::Command & _cmd,
-					const ItalcCore::CommandArgs & _args )
-{
-	bool extProc = ( _this != NULL );
-
-	if( extProc )
-	{
-		bool runDetached = ( _cmd == ItalcCore::AccessDialog ) ?
-								false : true;
-		QString procArgs = _cmd;
-		for( ItalcCore::CommandArgs::ConstIterator it = _args.begin();
-						it != _args.end(); ++it )
-		{
-			procArgs += "," + it.key() + "=" +
-							it.value().toString();
-		}
-		if( runDetached )
-		{
-			QProcess * p = new QProcess( _this );
-			if( _this->m_guiProcs.contains( _cmd ) )
-			{
-				QProcess * oldProc = _this->m_guiProcs[_cmd];
-				if( oldProc )
-				{
-					oldProc->terminate();
-					delete oldProc;
-					_this->m_guiProcs[_cmd] = NULL;
-				}
-			}
-
-			_this->m_guiProcs[_cmd] = p;
-			p->start( QCoreApplication::applicationFilePath(),
-					QStringList() << procArgs );
-			return 0;
-		}
-		else
-		{
-			return QProcess::execute(
-				QCoreApplication::applicationFilePath(),
-					QStringList() << procArgs );
-		}
-	}
-
-	if( _cmd == ItalcCore::AccessDialog )
-	{
-		return _this->showAccessDialog( _args["host"].toString() );
-	}
-	else if( _cmd == ItalcCore::StartDemo )
-	{
-		_this->startDemo( _args["host"].toString(),
-					_args["fullscreen"].toInt() );
-	}
-	else if( _cmd == ItalcCore::LockDisplay )
-	{
-		_this->lockDisplay();
-	}
-	else if( _cmd == ItalcCore::DisplayTextMessage )
-	{
-		_this->displayTextMessage( _args["text"].toString() );
-	}
-	else
-	{
-		// TODO: handle plugins
-		qWarning() << "ItalcCoreServer::doGuiOp():"
-				" unhandled command" << _cmd;
-	}
-	return 0;
-}
-
-
-
-
-ItalcCoreServer::AccessDialogResult ItalcCoreServer::showAccessDialog(
+/*ItalcCoreServer::AccessDialogResult ItalcCoreServer::showAccessDialog(
 							const QString & _host )
 {
 	QMessageBox m( QMessageBox::Question,
@@ -622,91 +346,121 @@ ItalcCoreServer::AccessDialogResult ItalcCoreServer::showAccessDialog(
 		return AccessNo;
 	}
 	return AccessYes;
-}
+}*/
 
 
 
 
-void ItalcCoreServer::checkForPendingActions( void )
-{
-	QMutexLocker ml( &m_actionMutex );
-	while( !m_pendingActions.isEmpty() )
-	{
-		doGuiOp( m_pendingActions.front().first,
-				m_pendingActions.front().second );
-		m_pendingActions.removeFirst();
-	}
-}
-
-
-
-
-void ItalcCoreServer::startDemo( const QString & _master_host, bool _fullscreen )
-{
-	delete m_demoClient;
-	m_demoClient = NULL;
-	// if a demo-server is started, it's likely that the demo was started
-	// on master-computer as well therefore we deny starting a demo on
-	// hosts on which a demo-server is running
-/*	if( demoServer::numOfInstances() > 0 )
-	{
-		return;
-	}*/
-
-	m_demoClient = new DemoClient( _master_host, _fullscreen );
-}
-
-
-
-
-void ItalcCoreServer::stopDemo( void )
-{
-	delete m_demoClient;
-	m_demoClient = NULL;
-}
-
-
-
-
-void ItalcCoreServer::lockDisplay( void )
-{
-/*	if( demoServer::numOfInstances() )
-	{
-		return;
-	}*/
-	delete m_lockWidget;
-	m_lockWidget = new LockWidget();
-}
-
-
-
-
-void ItalcCoreServer::unlockDisplay( void )
-{
-	delete m_lockWidget;
-	m_lockWidget = NULL;
-}
-
-
-
-
-void ItalcCoreServer::displayTextMessage( const QString & _msg )
+/*void ItalcCoreServer::displayTextMessage( const QString & _msg )
 {
 	new DecoratedMessageBox( tr( "Message from teacher" ), _msg,
 					QPixmap( ":/resources/message.png" ) );
-}
+}*/
 
 
 
 
-void ItalcCoreServer::errorMsgAuth( const QString & _ip )
+void ItalcCoreServer::errorMsgAuth( const QString &ip )
 {
-	DecoratedMessageBox::trySysTrayMessage( tr( "Authentication error" ),
+	_this->m_masterProcess.systemTrayMessage(
+			tr( "Authentication error" ),
 			tr( "Somebody (IP: %1) tried to access this computer "
 					"but could not authenticate itself "
-					"successfully!" ).arg( QString( _ip ) ),
-						DecoratedMessageBox::Critical );
+					"successfully!" ).arg( ip ) );
 }
 
 
+
+
+bool ItalcCoreServer::doKeyBasedAuth( SocketDevice &sdev )
+{
+	// generate data to sign and send to client
+	const QByteArray chall = DsaKey::generateChallenge();
+	sdev.write( QVariant( chall ) );
+
+	// get user-role
+	const ItalcCore::UserRoles urole =
+				static_cast<ItalcCore::UserRoles>( sdev.read().toInt() );
+	if( ItalcCore::role != ItalcCore::RoleOther )
+	{
+		/*	if( __denied_hosts.contains( host ) )
+			{
+				result = ItalcAuthFailed;
+				break;
+			}
+			if( !__allowed_hosts.contains( host ) )
+			{
+				bool failed = true;
+				switch( doGuiOp( ItalcCore::AccessDialog, host ) )
+				{
+					case AccessAlways:
+						__allowed_hosts += host;
+					case AccessYes:
+						failed = false;
+						break;
+					case AccessNever:
+						__denied_hosts += host;
+					case AccessNo:
+						break;
+				}
+				if( failed )
+				{
+					result = ItalcAuthFailed;
+					break;
+				}
+			}
+			else*/
+			{
+				return false;
+			}
+	}
+
+	// now try to verify received signed data using public key of the user
+	// under which the client claims to run
+	const QByteArray sig = sdev.read().toByteArray();
+
+	// (publicKeyPath does range-checking of urole)
+	PublicDSAKey pubKey( LocalSystem::publicKeyPath( urole ) );
+
+	return pubKey.verifySignature( chall, sig );
+}
+
+
+
+
+bool ItalcCoreServer::doHostBasedAuth( const QString &host )
+{
+	if( m_allowedIPs.isEmpty() )
+	{
+		return false;
+	}
+
+	// already valid IP?
+	if( QHostAddress().setAddress( host ) )
+	{
+		if( m_allowedIPs.contains( host ) )
+		{
+			return true;
+		}
+	}
+	else
+	{
+		// create a list of all known addresses of host
+		QList<QHostAddress> addr = QHostInfo::fromName( host ).addresses();
+
+		// check each address for existence in list of allowed clients
+		foreach( const QHostAddress a, addr )
+		{
+			if( m_allowedIPs.contains( a.toString() ) ||
+					a.toString() == QHostAddress( QHostAddress::LocalHost ).
+																	toString() )
+			{
+				return true;
+			}
+		}
+	}
+
+	// host-based authentication failed
+	return false;
+}
 

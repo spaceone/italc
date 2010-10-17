@@ -1,7 +1,7 @@
 /*
- * VncView.cpp - VNC-viewer-widget
+ * VncView.cpp - VNC viewer widget
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,7 +22,6 @@
  *
  */
 
-
 #define XK_KOREAN
 #include "rfb/keysym.h"
 
@@ -39,10 +38,14 @@
 
 
 
-VncView::VncView( const QString & _host, QWidget * _parent,
-						bool _progress_widget ) :
-	QWidget( _parent ),
+VncView::VncView( const QString &host, QWidget *parent, Mode mode ) :
+	QWidget( parent ),
 	m_vncConn( this ),
+	m_mode( mode ),
+	m_frame(),
+	m_cursorShape(),
+	m_cursorHotX( 0 ),
+	m_cursorHotY( 0 ),
 	m_viewOnly( true ),
 	m_viewOnlyFocus( true ),
 	m_scaledView( true ),
@@ -52,21 +55,29 @@ VncView::VncView( const QString & _host, QWidget * _parent,
 	m_establishingConnection( NULL ),
 	m_sysKeyTrapper( new SystemKeyTrapper( false ) )
 {
-/*	if( _progress_widget )
+	m_vncConn.setHost( host );
+	if( m_mode == DemoMode )
 	{
-		m_establishingConnection = new progressWidget(
-			tr( "Establishing connection to %1 ..." ).arg( _host ),
+		m_vncConn.setQuality( ItalcVncConnection::DemoQuality );
+		m_vncConn.setItalcAuthType( ItalcAuthHostBased );
+		m_establishingConnection = new ProgressWidget(
+			tr( "Establishing connection to %1 ..." ).arg( host ),
 					":/resources/watch%1.png", 16, this );
-	}*/
+		connect( &m_vncConn, SIGNAL( connected() ),
+					m_establishingConnection, SLOT( hide() ) );
 
-	m_vncConn.setHost( _host );
-	m_vncConn.setQuality( ItalcVncConnection::QualityHigh );
+	}
+	else if( m_mode == RemoteControlMode )
+	{
+		m_vncConn.setQuality( ItalcVncConnection::RemoteControlQuality );
+	}
+
 	connect( &m_vncConn, SIGNAL( imageUpdated( int, int, int, int ) ),
 			this, SLOT( updateImage( int, int, int, int ) ),
 						Qt::BlockingQueuedConnection );
 
-/*	connect( m_connection, SIGNAL( cursorShapeChanged() ),
-					this, SLOT( updateCursorShape() ) );*/
+	connect( &m_vncConn, SIGNAL( cursorShapeUpdated( const QImage &, int, int ) ),
+				this, SLOT( updateCursorShape( const QImage &, int, int ) ) );
 /*	setMouseTracking( true );
 	//setWidgetAttribute( Qt::WA_OpaquePaintEvent );
 	setAttribute( Qt::WA_NoSystemBackground, true );
@@ -187,8 +198,7 @@ void VncView::setViewOnly( bool _vo )
 		releaseMouse();
 #endif
 		grabKeyboard();
-//		m_sysKeyTrapper->setEnabled( true );
-		updateCursorShape();
+		updateLocalCursor();
 	}
 }
 
@@ -313,16 +323,12 @@ void VncView::setScaledView( bool _sv )
 
 
 
-
-void VncView::updateCursorShape( void )
+void VncView::updateCursorShape( const QImage &cursorShape, int xh, int yh )
 {
-/*	if( !viewOnly() && !m_connection->cursorShape().isNull() )
-	{
-		setCursor( QCursor( QPixmap::fromImage(
-						m_connection->cursorShape() ),
-			m_connection->cursorHotSpot().x(),
-			m_connection->cursorHotSpot().y() ) );
-	}*/
+	m_cursorShape = cursorShape;
+	m_cursorHotX = xh;
+	m_cursorHotY = yh;
+	updateLocalCursor();
 }
 
 
@@ -342,8 +348,8 @@ void VncView::focusInEvent( QFocusEvent * _e )
 
 void VncView::focusOutEvent( QFocusEvent * _e )
 {
-	m_viewOnlyFocus = viewOnly();
-	if( !viewOnly() )
+	m_viewOnlyFocus = isViewOnly();
+	if( !isViewOnly() )
 	{
 		setViewOnly( true );
 	}
@@ -520,7 +526,7 @@ void VncView::keyEventHandler( QKeyEvent * _ke )
 
 
 
-void VncView::unpressModifiers( void )
+void VncView::unpressModifiers()
 {
 	QList<unsigned int> keys = m_mods.keys();
 	QList<unsigned int>::const_iterator it = keys.begin();
@@ -535,34 +541,60 @@ void VncView::unpressModifiers( void )
 
 
 
-QPoint VncView::mapToFramebuffer( const QPoint & _pos )
+QPoint VncView::mapToFramebuffer( const QPoint &pos )
 {
-	const QSize fbs = framebufferSize();//m_connection ? m_connection->framebufferSize() :
-									QSize();
-	const int x = m_scaledView && fbs.isValid() ?
-			_pos.x() * fbs.width() / scaledSize( fbs ).width()
-		:
-			_pos.x() + m_viewOffset.x();
-	const int y = m_scaledView && fbs.isValid() ?
-			_pos.y() * fbs.height() / scaledSize( fbs ).height()
-		:
-			_pos.y() + m_viewOffset.y();
-	return( QPoint( x, y ) );
+	const QSize fbs = framebufferSize();
+	if( !fbs.isValid() )
+	{
+		return QPoint( 0, 0 );
+	}
+
+	if( m_scaledView )
+	{
+		return QPoint( pos.x() * fbs.width() / scaledSize( fbs ).width(),
+						pos.y() * fbs.height() / scaledSize( fbs ).height() );
+	}
+
+	return QPoint( pos.x() + m_viewOffset.x(),
+					pos.y() + m_viewOffset.y() );
 }
 
 
 
 
-QRect VncView::mapFromFramebuffer( const QRect & _r )
+QRect VncView::mapFromFramebuffer( const QRect &r )
 {
+	if( !framebufferSize().isValid() )
+	{
+		return QRect();
+	}
 	if( m_scaledView )
 	{
 		const float dx = width() / (float) framebufferSize().width();
 		const float dy = height() / (float) framebufferSize().height();
-		return( QRect( (int)(_r.x()*dx), (int)(_r.y()*dy),
-					(int)(_r.width()*dx), (int)(_r.height()*dy) ) );
+		return( QRect( (int)(r.x()*dx), (int)(r.y()*dy),
+					(int)(r.width()*dx), (int)(r.height()*dy) ) );
 	}
-	return( _r.translated( -m_viewOffset ) );
+	return( r.translated( -m_viewOffset ) );
+}
+
+
+
+void VncView::updateLocalCursor()
+{
+	if( !isViewOnly() && !m_cursorShape.isNull() )
+	{
+		float scale = 1;
+		if( scaledSize().isValid() && framebufferSize().isValid() )
+		{
+			scale = (float) scaledSize().width() / framebufferSize().width();
+		}
+		int cursorWidth = scale * m_cursorShape.width();
+		int cursorHeight = scale * m_cursorShape.height();
+		setCursor( QCursor( QPixmap::fromImage(
+							m_cursorShape.scaled( cursorWidth, cursorHeight ) ),
+								m_cursorHotX*scale, m_cursorHotY*scale ) );
+	}
 }
 
 
@@ -595,27 +627,19 @@ bool VncView::event( QEvent * event )
 
 
 
-void VncView::paintEvent( QPaintEvent * _pe )
+void VncView::paintEvent( QPaintEvent *paintEvent )
 {
 	if( m_frame.isNull() || m_frame.format() == QImage::Format_Invalid )
 	{
-		QWidget::paintEvent( _pe );
+		QWidget::paintEvent( paintEvent );
 		return;
 	}
 
-	_pe->accept();
+	paintEvent->accept();
 
 	QPainter p( this );
 
 	const QSize ss = scaledSize();
-
-	// avoid nasty through-shining-window-effect when not connected yet
-/*	if( !ss.isValid() && m_frame.isNull() )
-	{
-		p.fillRect( _pe->rect(), Qt::black );
-		return;
-	}*/
-
 	const float scale = ss.isValid() ?
 			(float) ss.width() / framebufferSize().width() : 1;
 	if( m_repaint )
@@ -633,7 +657,7 @@ void VncView::paintEvent( QPaintEvent * _pe )
 	}
 	else
 	{
-		QRect rect = _pe->rect();
+		QRect rect = paintEvent->rect();
 		if( rect.width() != m_frame.width() || rect.height() != m_frame.height() )
 		{
 			int sx = qRound( rect.x()/scale );
@@ -647,35 +671,15 @@ void VncView::paintEvent( QPaintEvent * _pe )
 		}
 		else
 		{
+			// even we just have to update a part of the screen, update
+			// everything when in scaled mode as otherwise there're annoying
+			// artifacts
 			p.drawImage( QPoint( 0, 0 ),
 		m_frame.scaled( qRound( m_frame.width() * scale ),
 					qRound( m_frame.height()*scale ),
 			Qt::IgnoreAspectRatio, Qt::SmoothTransformation ) );
 		}
 	}
-/*
-	// only paint requested region of image
-	p.drawImage( _pe->rect().topLeft(),
-			ss.isValid() ?
-				m_frame. :
-						m_frame,
-			_pe->rect().translated( m_viewOffset ),
-			Qt::ThresholdDither );
-*/
-/*	if( viewOnly() && !m_connection->cursorShape().isNull() )
-	{
-		const QImage & cursor = m_connection->cursorShape();
-		const QRect cursor_rect = mapFromFramebuffer(
-			QRect( m_connection->cursorPos() -
-						m_connection->cursorHotSpot(),
-							cursor.size() ) );
-		// parts of cursor within updated region?
-		if( _pe->rect().intersects( cursor_rect ) )
-		{
-			// then repaint it
-			p.drawImage( cursor_rect.topLeft(), cursor );
-		}
-	}*/
 
 	// draw black borders if neccessary
 	const int fbw = ss.isValid() ? ss.width() :
@@ -706,13 +710,16 @@ void VncView::resizeEvent( QResizeEvent * _re )
 		m_viewOffset = QPoint(
 				qMax( 0, qMin( m_viewOffset.x(), max_x ) ),
 				qMax( 0, qMin( m_viewOffset.y(), max_y ) ) );
-		update();
 	}
+
+	repaint();
 
 	if( m_establishingConnection )
 	{
 		m_establishingConnection->move( 10, 10 );
 	}
+
+	updateLocalCursor();
 
 	QWidget::resizeEvent( _re );
 }
@@ -746,7 +753,7 @@ void VncView::mouseEventHandler( QMouseEvent * _me )
 
 	if( _me->type() != QEvent::MouseMove )
 	{
-		for( Q_UINT8 i = 0; i < sizeof(map)/sizeof(buttonXlate); ++i )
+		for( uint8_t i = 0; i < sizeof(map)/sizeof(buttonXlate); ++i )
 		{
 			if( _me->button() == map[i].qt )
 			{
@@ -760,6 +767,15 @@ void VncView::mouseEventHandler( QMouseEvent * _me )
 					m_buttonMask &= ~map[i].rfb;
 				}
 			}
+		}
+	}
+	else
+	{
+		if( _me->pos().y() < 2 )
+		{
+			// special signal for allowing parent-widgets to
+			// show a toolbar etc.
+			emit mouseAtTop();
 		}
 	}
 

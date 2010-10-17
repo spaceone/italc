@@ -43,6 +43,7 @@ class QSplitter;
 class ItalcCoreConnection;
 class ClassroomManager;
 class ConfigWidget;
+class DemoServerMaster;
 class OverviewWidget;
 class RemoteControlWidget;
 class UserList;
@@ -59,6 +60,11 @@ public:
 	QGraphicsScene * workspace()
 	{
 		return m_workspace;
+	}
+
+	DemoServerMaster *demoServerMaster()
+	{
+		return m_demoServerMaster;
 	}
 
 	void checkModeButton( int _id )
@@ -141,6 +147,8 @@ private:
 
 	QWidget * m_sideBarWidget;
 	int m_openedTabInSideBar;
+
+	DemoServerMaster *m_demoServerMaster;
 
 	QReadWriteLock m_rctrlLock;
 	RemoteControlWidget * m_remoteControlWidget;

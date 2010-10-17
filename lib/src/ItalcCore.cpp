@@ -1,7 +1,7 @@
 /*
  * ItalcCore.cpp - implementation of iTALC Core
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,7 +22,6 @@
  *
  */
 
-
 #include <italcconfig.h>
 
 #include <QtCore/QDir>
@@ -30,11 +29,13 @@
 
 #include "ItalcCore.h"
 #include "DsaKey.h"
+#include "ItalcVncConnection.h"
 #include "LocalSystem.h"
 
 
 static PrivateDSAKey * privDSAKey = NULL;
 
+int ItalcCore::serverPort = PortOffsetIVS;
 ItalcCore::UserRoles ItalcCore::role = ItalcCore::RoleOther;
 
 
@@ -85,19 +86,39 @@ bool ItalcCore::initAuthentication( void )
 
 
 
-int handleSecTypeItalc( rfbClient * _cl )
+void handleSecTypeItalc( rfbClient *client )
 {
-	SocketDevice socketDev( libvncClientDispatcher, _cl );
+	SocketDevice socketDev( libvncClientDispatcher, client );
 
-	int iat = socketDev.read().toInt();
-/*	if( _try_auth_type == ItalcAuthChallengeViaAuthFile ||
-	_try_auth_type == ItalcAuthAppInternalChallenge )
+	// read list of supported authentication types
+	QMap<QString, QVariant> supportedAuthTypes = socketDev.read().toMap();
+
+	int chosenAuthType = ItalcAuthDSA;
+	if( !supportedAuthTypes.isEmpty() )
 	{
-		iat = _try_auth_type;
-	}*/
-	socketDev.write( QVariant( iat ) );
+		chosenAuthType = supportedAuthTypes.values().first().toInt();
 
-	if( iat == ItalcAuthDSA || iat == ItalcAuthLocalDSA )
+		// look whether the ItalcVncConnection recommends a specific
+		// authentication type (e.g. ItalcAuthHostBased when running as
+		// demo client)
+		ItalcVncConnection *t = (ItalcVncConnection *)
+										rfbClientGetClientData( client, 0 );
+
+		if( t != NULL )
+		{
+			foreach( const QVariant &v, supportedAuthTypes )
+			{
+				if( t->italcAuthType() == v.toInt() )
+				{
+					chosenAuthType = v.toInt();
+				}
+			}
+		}
+	}
+
+	socketDev.write( QVariant( chosenAuthType ) );
+
+	if( chosenAuthType == ItalcAuthDSA )
 	{
 		QByteArray chall = socketDev.read().toByteArray();
 		socketDev.write( QVariant( (int) ItalcCore::role ) );
@@ -107,16 +128,15 @@ int handleSecTypeItalc( rfbClient * _cl )
 		}
 		socketDev.write( privDSAKey->sign( chall ) );
 	}
-	else if( iat == ItalcAuthHostBased )
+	else if( chosenAuthType == ItalcAuthHostBased )
 	{
+		// nothing to do - we just get accepted if our IP is in the list of
+		// allowed hosts
 	}
-	else if( iat == ItalcAuthNone )
+	else if( chosenAuthType == ItalcAuthNone )
 	{
+		// nothing to do - we just get accepted
 	}
-
-	const uint res = socketDev.read().toUInt();
-
-	return res == ItalcAuthOK;
 }
 
 
@@ -141,6 +161,27 @@ const Command PowerDownComputer = "PowerDownComputer";
 const Command RestartComputer = "RestartComputer";
 const Command DisableLocalInputs = "DisableLocalInputs";
 const Command SetRole = "SetRole";
+
+namespace Ipc
+{
+	const ::Ipc::Id IdCoreServer = "CoreServer";
+	const ::Ipc::Id IdDemoClient = "DemoClient";
+	const ::Ipc::Id IdDemoServer = "DemoServer";
+	const ::Ipc::Id IdMessageBox = "MessageBox";
+	const ::Ipc::Id IdScreenLock = "ScreenLock";
+	const ::Ipc::Id IdSystemTrayIcon = "SystemTrayIcon";
+
+	namespace DemoServer
+	{
+		const ::Ipc::Command StartDemoServer = "StartDemoServer";
+		const ::Ipc::Argument UserRole = "UserRole";
+		const ::Ipc::Argument SourcePort = "SourcePort";
+		const ::Ipc::Argument DestinationPort = "DestinationPort";
+
+		const ::Ipc::Command UpdateAllowedHosts = "UpdateAllowedHosts";
+		const ::Ipc::Argument AllowedHosts = "AllowedHosts";
+	}
+}
 
 } ;
 

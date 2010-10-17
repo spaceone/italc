@@ -1,8 +1,8 @@
 /*
- * IVS.h - class IVS, a VNC server abstraction for platform-independent
- *         VNC server usage
+ * DemoServerMaster.h - DemoServerMaster which manages (GUI) slave apps
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Univention GmbH
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -23,56 +23,45 @@
  *
  */
 
+#ifndef _DEMO_SERVER_MASTER_H
+#define _DEMO_SERVER_MASTER_H
 
-#ifndef _IVS_H
-#define _IVS_H
+#include "Ipc/Master.h"
 
-#include <QtCore/QThread>
-
-
-extern int __ivs_port;
-
-
-class IVS : public QThread
+class DemoServerMaster : protected Ipc::Master
 {
 public:
-	IVS( const quint16 _ivs_port, int _argc, char * * _argv,
-						bool _no_threading = false );
-	virtual ~IVS();
+	DemoServerMaster();
+	virtual ~DemoServerMaster();
 
-	quint16 serverPort( void ) const
+	void start( int sourcePort, int destinationPort );
+	void stop();
+	void updateAllowedHosts();
+
+	void allowHost( const QString &host )
 	{
-		return( m_port );
+		m_allowedHosts += host;
+		updateAllowedHosts();
 	}
 
-	bool runningInSeparateProcess( void ) const
+	void unallowHost( const QString &host )
 	{
-		return m_runningInSeparateProcess;
+		m_allowedHosts.removeAll( host );
+		updateAllowedHosts();
 	}
 
-#ifdef ITALC_BUILD_LINUX
-	void restart( void )
+	int serverPort() const
 	{
-		m_restart = true;
+		return m_serverPort;
 	}
-#endif
 
 
 private:
-	virtual void run( void );
+	virtual bool handleMessage( const Ipc::Msg &m );
 
-	int m_argc;
-	char * * m_argv;
-
-	quint16 m_port;
-	bool m_runningInSeparateProcess;
-
-#ifdef ITALC_BUILD_LINUX
-	bool m_restart;
-#endif
+	QStringList m_allowedHosts;
+	int m_serverPort;
 
 } ;
 
-
 #endif
-

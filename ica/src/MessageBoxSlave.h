@@ -1,7 +1,8 @@
 /*
- * types.h - some typedefs
+ * MessageBoxSlave.h - an IcaSlave providing message boxes
  *
- * Copyright (c) 2006-2008 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Univention GmbH
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,34 +23,25 @@
  *
  */
 
-#ifndef _TYPES_H
-#define _TYPES_H
+#ifndef _MESSAGE_BOX_SLAVE_H
+#define _MESSAGE_BOX_SLAVE_H
 
-#include <italcconfig.h>
-#include <stdint.h>
+#include "IcaSlave.h"
 
-typedef signed char             Q_INT8;         /* 8 bit signed */
-typedef unsigned char           Q_UINT8;        /* 8 bit unsigned */
-typedef short                   Q_INT16;        /* 16 bit signed */
-typedef unsigned short          Q_UINT16;       /* 16 bit unsigned */
-typedef int32_t			Q_INT32;        /* 32 bit signed */
-typedef uint32_t 		Q_UINT32;       /* 32 bit unsigned */
+class MessageBoxSlave : public IcaSlave
+{
+public:
+	static const Ipc::Command ShowMessageBox;
+	static const Ipc::Argument Text;
 
-
-#ifdef ITALC_BUILD_WIN32
-
-#ifdef BUILD_LIBRARY
-#define IC_DllExport __declspec(dllexport)
-#else
-#define IC_DllExport __declspec(dllimport)
-#endif
+	MessageBoxSlave();
+	virtual ~MessageBoxSlave();
 
 
-#else
+private:
+	virtual bool handleMessage( const Ipc::Msg &m );
 
-#define IC_DllExport
+} ;
 
 #endif
 
-
-#endif

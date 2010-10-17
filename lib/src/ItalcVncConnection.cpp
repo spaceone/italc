@@ -1,7 +1,7 @@
 /*
  * ItalcVncConnection.cpp - implementation of ItalcVncConnection class
  *
- * Copyright (c) 2008-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2008-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -24,7 +24,6 @@
  * Boston, MA 02111-1307, USA.
  *
  */
-
 
 #include "ItalcVncConnection.h"
 
@@ -124,26 +123,28 @@ rfbBool ItalcVncConnection::hookNewClient( rfbClient * _cl )
 	_cl->format.greenMax = 0xff;
 	_cl->format.blueMax = 0xff;
 
+	// only use remote cursor for remote control
+	_cl->appData.useRemoteCursor = false;
+
 	switch( t->quality() )
 	{
-		case QualityDemoHigh:
-		case QualityDemoMedium:
-		case QualityDemoLow:
+		case SnapshotQuality:
 			_cl->appData.useBGR233 = 0;
 			_cl->appData.encodingsString = "raw";
 			_cl->appData.compressLevel = 0;
 			_cl->appData.qualityLevel = 9;
 			_cl->appData.enableJPEG = false;
 			break;
-		case QualityHigh:
+		case RemoteControlQuality:
 			_cl->appData.useBGR233 = 0;
 			_cl->appData.encodingsString = "zrle ultra copyrect "
 							"hextile zlib raw";
 			_cl->appData.compressLevel = 0;
 			_cl->appData.qualityLevel = 9;
 			_cl->appData.enableJPEG = false;
+			_cl->appData.useRemoteCursor = true;
 			break;
-		case QualityLow:
+		case ThumbnailQuality:
 			_cl->appData.useBGR233 = 1;
 			_cl->appData.encodingsString = "tight zrle ultra "
 							"copyrect hextile zlib "
@@ -152,8 +153,8 @@ rfbBool ItalcVncConnection::hookNewClient( rfbClient * _cl )
 			_cl->appData.qualityLevel = 4;
 			_cl->appData.enableJPEG = true;
 			break;
-		case QualityMedium:
 		default:
+		case DemoQuality:
 			_cl->appData.useBGR233 = 0;
 			_cl->appData.encodingsString = "tight zrle ultra "
 							"copyrect hextile zlib "
@@ -190,6 +191,29 @@ void ItalcVncConnection::hookUpdateFB( rfbClient * _cl, int _x, int _y, int _w,
 	t->emitUpdated( _x, _y, _w, _h );
 }
 
+
+
+void ItalcVncConnection::hookCursorShape( rfbClient *cl, int xh, int yh,
+											int w, int h, int bpp )
+{
+	const int bytesPerRow = (w + 7) / 8;
+	for( int i = 0; i < w*h;++i )
+	{
+		if( cl->rcMask[i] )
+		{
+			cl->rcMask[i] = 255;
+		}
+	}
+	QImage alpha( cl->rcMask, w, h, QImage::Format_Indexed8 );
+
+	QImage cursorShape = QImage( cl->rcSource, w, h, QImage::Format_RGB32 );
+	cursorShape.convertToFormat( QImage::Format_ARGB32 );
+	cursorShape.setAlphaChannel( alpha );
+
+	ItalcVncConnection * t = (ItalcVncConnection *)
+					rfbClientGetClientData( cl, 0 );
+	t->emitCursorShapeUpdated( cursorShape, xh, yh );
+}
 
 
 
@@ -255,8 +279,9 @@ ItalcVncConnection::ItalcVncConnection( QObject * _parent ) :
 	m_stopped( false ),
 	m_connected( false ),
 	m_cl( NULL ),
-	m_quality( QualityMedium ),
+	m_quality( DemoQuality ),
 	m_port( PortOffsetIVS ),
+	m_framebufferUpdateInterval( 0 ),
 	m_image(),
 	m_scaledScreenNeedsUpdate( false ),
 	m_scaledScreen(),
@@ -289,10 +314,10 @@ void ItalcVncConnection::checkOutputErrorMessage()
 
 
 
-void ItalcVncConnection::stop( void )
+void ItalcVncConnection::stop()
 {
 	m_stopped = true;
-	if( !wait( 500 ) )
+	if( !wait( 1000 ) )
 	{
 		terminate();
 	}
@@ -365,7 +390,15 @@ const QImage ItalcVncConnection::image( int _x, int _y, int _w, int _h )
 
 
 
-void ItalcVncConnection::rescaleScreen( void )
+void ItalcVncConnection::setFramebufferUpdateInterval( int interval )
+{
+	m_framebufferUpdateInterval = interval;
+}
+
+
+
+
+void ItalcVncConnection::rescaleScreen()
 {
 	if( m_scaledScreenNeedsUpdate )
 	{
@@ -398,6 +431,15 @@ void ItalcVncConnection::emitUpdated( int _x, int _y, int _w, int _h )
 
 
 
+void ItalcVncConnection::emitCursorShapeUpdated( const QImage &cursorShape,
+														int xh, int yh )
+{
+	emit cursorShapeUpdated( cursorShape, xh, yh );
+}
+
+
+
+
 void ItalcVncConnection::emitGotCut( const QString & _text )
 {
 	emit gotCut( _text );
@@ -406,7 +448,7 @@ void ItalcVncConnection::emitGotCut( const QString & _text )
 
 
 
-void ItalcVncConnection::run( void )
+void ItalcVncConnection::run()
 {
 	m_stopped = false;
 
@@ -419,6 +461,7 @@ void ItalcVncConnection::run( void )
 		m_cl->MallocFrameBuffer = hookNewClient;
 		m_cl->canHandleNewFBSize = true;
 		m_cl->GotFrameBufferUpdate = hookUpdateFB;
+		m_cl->GotCursorShape = hookCursorShape;
 		m_cl->GotXCutText = hookCutText;
 		rfbClientSetClientData( m_cl, 0, this );
 
@@ -435,6 +478,7 @@ void ItalcVncConnection::run( void )
 			m_port += PortOffsetIVS;
 		}
 
+		free( m_cl->serverHost );
 		m_cl->serverHost = strdup( m_host.toUtf8().constData() );
 		m_cl->serverPort = m_port;
 
@@ -444,7 +488,13 @@ void ItalcVncConnection::run( void )
 
 		if( rfbInitClient( m_cl, 0, 0 ) )
 		{
+			emit connected();
+
 			m_connected = true;
+			if( m_framebufferUpdateInterval < 0 )
+			{
+				rfbClientSetClientData( m_cl, (void *) 0x555, (void *) 1 );
+			}
 		}
 	}
 
@@ -452,7 +502,12 @@ void ItalcVncConnection::run( void )
 	// Main VNC event loop
 	while( !m_stopped )
 	{
-		const int i = WaitForMessage( m_cl, 500 );
+		int timeout = 500;
+		if( m_framebufferUpdateInterval < 0 )
+		{
+			timeout = 100*1000;	// 100 ms
+		}
+		const int i = WaitForMessage( m_cl, timeout );
 		if( i < 0 )
 		{
 			break;
@@ -475,9 +530,14 @@ void ItalcVncConnection::run( void )
 		}
 
 		m_mutex.unlock();
+
+		if( m_framebufferUpdateInterval > 0 )
+		{
+			msleep( m_framebufferUpdateInterval );
+		}
 	}
 
-	if( m_connected )
+	if( m_connected && m_cl )
 	{
 		rfbClientCleanup( m_cl );
 		m_connected = false;

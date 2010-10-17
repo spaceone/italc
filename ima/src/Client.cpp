@@ -25,6 +25,8 @@
 
 
 #include "Client.h"
+#include "DemoServerMaster.h"
+#include "ItalcVncConnection.h"
 #include "ItalcCoreConnection.h"
 #include "MasterCore.h"
 #include "DemoServer.h"
@@ -53,7 +55,7 @@ Client::Client( const QString & _host,
 	m_rasterPosition( -1, -1 )
 {
 	m_vncConn->setHost( m_host );
-	m_vncConn->setQuality( ItalcVncConnection::QualityLow );
+	m_vncConn->setQuality( ItalcVncConnection::ThumbnailQuality );
 }
 
 
@@ -102,7 +104,8 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				m_coreConn->stopDemo();
+				m_mainWindow->demoServerMaster()->unallowHost( m_hostname );
+				m_connection->stopDemo();
 				break;
 			case Mode_Locked:
 				m_coreConn->unlockDisplay();
@@ -117,9 +120,10 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				m_coreConn->startDemo(
-					MasterCore::demoServer->serverPort(),
-						m_mode == Mode_FullscreenDemo );
+				m_mainWindow->demoServerMaster()->allowHost( m_hostname );
+				m_connection->startDemo(
+								m_mainWindow->demoServerMaster()->serverPort(),
+								m_mode == Mode_FullscreenDemo );
 				break;
 			case Mode_Locked:
 				m_coreConn->lockDisplay();

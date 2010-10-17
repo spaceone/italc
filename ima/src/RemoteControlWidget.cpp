@@ -21,7 +21,6 @@
  *  USA.
  */
 
-
 #include "RemoteControlWidget.h"
 #include "VncView.h"
 #include "ItalcCoreConnection.h"
@@ -42,7 +41,7 @@
 
 // toolbar for remote-control-widget
 RemoteControlWidgetToolBar::RemoteControlWidgetToolBar(
-			RemoteControlWidget * _parent, bool _view_only ) :
+			RemoteControlWidget * _parent, bool viewOnly ) :
 	QWidget( _parent ),
 	m_parent( _parent ),
 	m_disappear( false ),
@@ -89,7 +88,7 @@ RemoteControlWidgetToolBar::RemoteControlWidgetToolBar(
 	vo_btn->setCheckable( true );
 	ls_btn->setCheckable( true );
 	fs_btn->setCheckable( true );
-	vo_btn->setChecked( _view_only );
+	vo_btn->setChecked( viewOnly );
 	fs_btn->setChecked( true );
 
 	connect( vo_btn, SIGNAL( toggled( bool ) ),
@@ -127,7 +126,7 @@ RemoteControlWidgetToolBar::~RemoteControlWidgetToolBar()
 
 
 
-void RemoteControlWidgetToolBar::appear( void )
+void RemoteControlWidgetToolBar::appear()
 {
 	m_disappear = false;
 	if( y() <= -height() )
@@ -139,7 +138,7 @@ void RemoteControlWidgetToolBar::appear( void )
 
 
 
-void RemoteControlWidgetToolBar::disappear( void )
+void RemoteControlWidgetToolBar::disappear()
 {
 	if( !m_connecting )
 	{
@@ -199,7 +198,7 @@ void RemoteControlWidgetToolBar::paintEvent( QPaintEvent * _pe )
 
 
 
-void RemoteControlWidgetToolBar::updatePosition( void )
+void RemoteControlWidgetToolBar::updatePosition()
 {
 	bool again;
 	if( m_disappear )
@@ -224,7 +223,7 @@ void RemoteControlWidgetToolBar::updatePosition( void )
 
 
 
-void RemoteControlWidgetToolBar::startConnection( void )
+void RemoteControlWidgetToolBar::startConnection()
 {
 	m_connecting = true;
 	m_iconState.restart();
@@ -235,7 +234,7 @@ void RemoteControlWidgetToolBar::startConnection( void )
 
 
 
-void RemoteControlWidgetToolBar::connectionEstablished( void )
+void RemoteControlWidgetToolBar::connectionEstablished()
 {
 	m_connecting = false;
 	QTimer::singleShot( 3000, this, SLOT( disappear() ) );
@@ -253,14 +252,14 @@ void RemoteControlWidgetToolBar::connectionEstablished( void )
 
 
 
-RemoteControlWidget::RemoteControlWidget( const QString & _host,
-						bool _view_only,
-						MainWindow * _main_window ) :
+RemoteControlWidget::RemoteControlWidget( const QString &host,
+											bool viewOnly,
+											MainWindow *mainWindow ) :
 	QWidget( 0 ),
-	m_vncView( new VncView( _host, this, false ) ),
+	m_vncView( new VncView( host, this, VncView::RemoteControlMode ) ),
 	m_icc( new ItalcCoreConnection( m_vncView->vncConnection() ) ),
-	m_toolBar( new RemoteControlWidgetToolBar( this, _view_only ) ),
-	m_mainWindow( _main_window ),
+	m_toolBar( new RemoteControlWidgetToolBar( this, viewOnly ) ),
+	m_mainWindow( mainWindow ),
 	m_extraStates( Qt::WindowMaximized )
 {
 	setWindowIcon( QPixmap( ":/resources/remote_control.png" ) );
@@ -275,7 +274,7 @@ RemoteControlWidget::RemoteControlWidget( const QString & _host,
 	show();
 	LocalSystem::activateWindow( this );
 
-	toggleViewOnly( _view_only );
+	toggleViewOnly( viewOnly );
 }
 
 
@@ -288,7 +287,7 @@ RemoteControlWidget::~RemoteControlWidget()
 
 
 
-QString RemoteControlWidget::host( void ) const
+QString RemoteControlWidget::host() const
 {
 	return "blah";
 /*	return( m_vncView->m_connection ? m_vncView->m_connection->host() :
@@ -298,9 +297,9 @@ QString RemoteControlWidget::host( void ) const
 
 
 
-void RemoteControlWidget::updateWindowTitle( void )
+void RemoteControlWidget::updateWindowTitle()
 {
-	const QString s = m_vncView->viewOnly() ?
+	const QString s = m_vncView->isViewOnly() ?
 			tr( "View live (%1 at host %2)" )
 		:
 			tr( "Remote control (%1 at host %2)" );
@@ -328,7 +327,7 @@ void RemoteControlWidget::resizeEvent( QResizeEvent * )
 
 
 
-void RemoteControlWidget::checkKeyEvent( Q_UINT32 _key, bool _pressed )
+void RemoteControlWidget::checkKeyEvent( uint32_t _key, bool _pressed )
 {
 	if( _pressed && _key == XK_Escape/* &&
 		m_vncView->m_connection->state() != ivsConnection::Connected*/ )
@@ -374,7 +373,7 @@ void RemoteControlWidget::toggleViewOnly( bool _on )
 
 
 
-void RemoteControlWidget::takeSnapshot( void )
+void RemoteControlWidget::takeSnapshot()
 {
 /*	m_vncView->m_connection->takeSnapshot();
 	if( m_mainWindow )

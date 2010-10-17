@@ -1,7 +1,7 @@
 /*
- * VncView.h - VNC-viewer-widget
+ * VncView.h - VNC viewer widget
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,9 +22,8 @@
  *
  */
 
-
 #ifndef _VNC_VIEW_H
-#define _VNCVIEW_H
+#define _VNC_VIEW_H
 
 #include <italcconfig.h>
 
@@ -32,7 +31,6 @@
 #include <QtCore/QThread>
 #include <QtGui/QWidget>
 
-#include "Types.h"
 #include "ItalcVncConnection.h"
 #include "FastQImage.h"
 
@@ -42,25 +40,32 @@ class RemoteControlWidget;
 class SystemKeyTrapper;
 
 
-class IC_DllExport VncView : public QWidget
+class VncView : public QWidget
 {
 	Q_OBJECT
 public:
-	VncView( const QString & _host, QWidget * _parent,
-							bool _progress_widget );
+	enum Modes
+	{
+		RemoteControlMode,
+		DemoMode,
+		NumModes
+	} ;
+	typedef Modes Mode;
+
+	VncView( const QString &host, QWidget *parent, Mode mode );
 	virtual ~VncView();
 
-	inline bool viewOnly( void ) const
+	inline bool isViewOnly() const
 	{
-		return( m_viewOnly );
+		return m_viewOnly;
 	}
 
-	inline bool scaledView( void ) const
+	inline bool isScaledView() const
 	{
-		return( m_scaledView );
+		return m_scaledView;
 	}
 
-	ItalcVncConnection * vncConnection( void )
+	ItalcVncConnection * vncConnection()
 	{
 		return &m_vncConn;
 	}
@@ -78,14 +83,14 @@ public slots:
 
 
 signals:
-	void mouseAtTop( void );
-	void startConnection( void );
-	void connectionEstablished( void );
+	void mouseAtTop();
+	void startConnection();
+	void connectionEstablished();
 
 
 private slots:
-	void updateCursorShape( void );
-	void updateImage(int x, int y, int w, int h);
+	void updateCursorShape( const QImage &cursorShape, int xh, int yh );
+	void updateImage( int x, int y, int w, int h );
 
 
 private:
@@ -99,16 +104,23 @@ private:
 	void keyEventHandler( QKeyEvent * );
 	void mouseEventHandler( QMouseEvent * );
 	void wheelEventHandler( QWheelEvent * );
-	void unpressModifiers( void );
+	void unpressModifiers();
 
 	QPoint mapToFramebuffer( const QPoint & _pos );
 	QRect mapFromFramebuffer( const QRect & _rect );
 
+	void updateLocalCursor();
+
 
 	ItalcVncConnection m_vncConn;
+
+	Mode m_mode;
 	int m_x, m_y, m_w, m_h;
 	bool m_repaint;
 	FastQImage m_frame;
+	FastQImage m_cursorShape;
+	int m_cursorHotX;
+	int m_cursorHotY;
 	bool m_viewOnly;
 	bool m_viewOnlyFocus;
 	bool m_scaledView;
@@ -127,8 +139,6 @@ private:
 	friend class remoteControlWidget;
 
 } ;
-
-
 
 #endif
 

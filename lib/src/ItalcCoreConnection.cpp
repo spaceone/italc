@@ -1,7 +1,7 @@
 /*
  * ItalcCoreConnection.cpp - implementation of ItalcCoreConnection
  *
- * Copyright (c) 2008-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2008-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -21,7 +21,6 @@
  * Boston, MA 02111-1307, USA.
  *
  */
-
 
 #include <QtCore/QDebug>
 
@@ -49,7 +48,7 @@ private:
 
 
 
-static rfbClientProtocolExtension * __italc_ext = NULL;
+static rfbClientProtocolExtension * __italcProtocolExt = NULL;
 static void * ItalcCoreConnectionTag = (void *) PortOffsetIVS; // an unique ID
 
 
@@ -60,14 +59,14 @@ ItalcCoreConnection::ItalcCoreConnection( ItalcVncConnection * _ivc ) :
 	m_user(),
 	m_userHomeDir()
 {
-	if( __italc_ext == NULL )
+	if( __italcProtocolExt == NULL )
 	{
-		__italc_ext = new rfbClientProtocolExtension;
-		__italc_ext->encodings = NULL;
-		__italc_ext->handleEncoding = NULL;
-		__italc_ext->handleMessage = handleItalcMessage;
+		__italcProtocolExt = new rfbClientProtocolExtension;
+		__italcProtocolExt->encodings = NULL;
+		__italcProtocolExt->handleEncoding = NULL;
+		__italcProtocolExt->handleMessage = handleItalcMessage;
 
-		rfbClientRegisterExtension( __italc_ext );
+		rfbClientRegisterExtension( __italcProtocolExt );
 	}
 
 	connect( m_ivc, SIGNAL( newClient( rfbClient * ) ),
@@ -80,6 +79,11 @@ ItalcCoreConnection::ItalcCoreConnection( ItalcVncConnection * _ivc ) :
 
 ItalcCoreConnection::~ItalcCoreConnection()
 {
+	if( m_ivc )
+	{
+		m_ivc->stop();
+		delete m_ivc;
+	}
 }
 
 
@@ -94,19 +98,18 @@ void ItalcCoreConnection::initNewClient( rfbClient * _cl )
 
 
 
-rfbBool ItalcCoreConnection::handleItalcMessage( rfbClient * _cl,
-						rfbServerToClientMsg * _msg )
+rfbBool ItalcCoreConnection::handleItalcMessage( rfbClient * cl,
+						rfbServerToClientMsg * msg )
 {
 	ItalcCoreConnection * icc = (ItalcCoreConnection *)
-				rfbClientGetClientData( _cl,
-						ItalcCoreConnectionTag );
-	return icc->handleServerMessage( _msg->type );
+				rfbClientGetClientData( cl, ItalcCoreConnectionTag );
+	return icc->handleServerMessage( cl, msg->type );
 }
 
 
 
 
-bool ItalcCoreConnection::handleServerMessage( Q_UINT8 _msg )
+bool ItalcCoreConnection::handleServerMessage( rfbClient *cl, uint8_t _msg )
 {
 	if( _msg == rfbItalcCoreResponse )
 	{
