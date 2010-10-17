@@ -32,7 +32,7 @@
 #include "ClassroomManager.h"
 #include "GlobalConfig.h"
 #include "PersonalConfig.h"
-#include "DemoServer.h"
+#include "DemoServerMaster.h"
 
 
 namespace MasterCore
@@ -49,7 +49,7 @@ ItalcCoreConnection * localCore = NULL;
 
 ClassroomManager * classroomManager = NULL;
 
-DemoServer * demoServer = NULL;
+DemoServerMaster * demoServerMaster = NULL;
 
 
 void init( void )
@@ -75,7 +75,8 @@ void init( void )
 
 	classroomManager = new ClassroomManager;
 
-	demoServer = new DemoServer;
+	demoServerMaster = new DemoServerMaster;
+	demoServerMaster->start( PortOffsetIVS, PortOffsetDemoServer );
 
 }
 
@@ -84,7 +85,7 @@ void deinit( void )
 	personalConfig->flushStore();
 	globalConfig->flushStore();
 
-	delete demoServer;
+	delete demoServerMaster;
 	delete classroomManager;
 	delete localCore;
 	delete personalConfig;

@@ -29,7 +29,6 @@
 #include "ItalcVncConnection.h"
 #include "ItalcCoreConnection.h"
 #include "MasterCore.h"
-#include "DemoServer.h"
 #include "ClassroomManager.h"
 #include "MainWindow.h"
 #include "MasterUI.h"
@@ -104,8 +103,8 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				m_mainWindow->demoServerMaster()->unallowHost( m_hostname );
-				m_connection->stopDemo();
+				MasterCore::demoServerMaster->unallowHost( m_host );
+				m_coreConn->stopDemo();
 				break;
 			case Mode_Locked:
 				m_coreConn->unlockDisplay();
@@ -120,9 +119,9 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				m_mainWindow->demoServerMaster()->allowHost( m_hostname );
-				m_connection->startDemo(
-								m_mainWindow->demoServerMaster()->serverPort(),
+				MasterCore::demoServerMaster->allowHost( m_host );
+				m_coreConn->startDemo(
+								MasterCore::demoServerMaster->serverPort(),
 								m_mode == Mode_FullscreenDemo );
 				break;
 			case Mode_Locked:

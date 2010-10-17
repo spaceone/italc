@@ -53,7 +53,6 @@
 #include "SnapshotList.h"
 #include "ConfigWidget.h"
 #include "DecoratedMessageBox.h"
-#include "DemoServerMaster.h"
 #include "ToolButton.h"
 #include "LocalSystem.h"
 #include "RemoteControlWidget.h"
@@ -392,9 +391,6 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 		break;
 	}
 
-	m_demoServerMaster = new DemoServerMaster;
-	m_demoServerMaster->start( PortOffsetIVS, PortOffsetDemoServer );
-
 	QIcon icon( ":/resources/icon16.png" );
 	icon.addFile( ":/resources/icon22.png" );
 	icon.addFile( ":/resources/icon32.png" );
@@ -420,8 +416,6 @@ MainWindow::~MainWindow()
 
 	// also delets clients
 	delete m_workspace;
-
-	delete m_demoServerMaster;
 
 	__systray_icon->hide();
 	delete __systray_icon;
