@@ -149,8 +149,10 @@ const Command GetUserInformation = "GetUserInformation";
 const Command UserInformation = "UserInformation";
 const Command StartDemo = "StartDemo";
 const Command StopDemo = "StopDemo";
-const Command LockDisplay = "LockDisplay";
-const Command UnlockDisplay = "UnlockDisplay";
+const Command LockScreen = "LockScreen";
+const Command UnlockScreen = "UnlockScreen";
+const Command LockInput = "LockInput";
+const Command UnlockInput = "UnlockInput";
 const Command LogonUserCmd = "LogonUser";
 const Command LogoutUser = "LogoutUser";
 const Command DisplayTextMessage = "DisplayTextMessage";
@@ -162,26 +164,13 @@ const Command RestartComputer = "RestartComputer";
 const Command DisableLocalInputs = "DisableLocalInputs";
 const Command SetRole = "SetRole";
 
-namespace Ipc
-{
-	const ::Ipc::Id IdCoreServer = "CoreServer";
-	const ::Ipc::Id IdDemoClient = "DemoClient";
-	const ::Ipc::Id IdDemoServer = "DemoServer";
-	const ::Ipc::Id IdMessageBox = "MessageBox";
-	const ::Ipc::Id IdScreenLock = "ScreenLock";
-	const ::Ipc::Id IdSystemTrayIcon = "SystemTrayIcon";
+const Command DemoServerAllowHost = "DemoServerAllowHost";
+const Command DemoServerUnallowHost = "DemoServerUnallowHost";
+const Command StartDemoServer = "StartDemoServer";
+const Command StopDemoServer = "StopDemoServer";
 
-	namespace DemoServer
-	{
-		const ::Ipc::Command StartDemoServer = "StartDemoServer";
-		const ::Ipc::Argument UserRole = "UserRole";
-		const ::Ipc::Argument SourcePort = "SourcePort";
-		const ::Ipc::Argument DestinationPort = "DestinationPort";
+const Command ReportSlaveStateFlags = "ReportSlaveStateFlags";
 
-		const ::Ipc::Command UpdateAllowedHosts = "UpdateAllowedHosts";
-		const ::Ipc::Argument AllowedHosts = "AllowedHosts";
-	}
-}
 
 } ;
 

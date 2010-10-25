@@ -45,6 +45,8 @@ int localDisplayPort = PortOffsetIVS;
 GlobalConfig * globalConfig = NULL;
 PersonalConfig * personalConfig = NULL;
 
+ItalcSlaveManager *italcSlaveManager;
+
 ItalcCoreConnection * localCore = NULL;
 
 ClassroomManager * classroomManager = NULL;
@@ -66,17 +68,25 @@ void init( void )
 	{
 		localDisplay->setPort( localDisplayPort );
 	}
+	localDisplay->setFramebufferUpdateInterval( -1 );
 	localDisplay->start();
+	if( !localDisplay->waitForConnected( 5000 ) )
+	{
+		// TODO
+	}
 
 	globalConfig = new GlobalConfig( Configuration::Store::XmlFile );
 	personalConfig = new PersonalConfig( Configuration::Store::XmlFile );
 
 	localCore = new ItalcCoreConnection( localDisplay );
+	localCore->setRole( ItalcCore::role );
+
+	italcSlaveManager = new ItalcSlaveManager;
+	italcSlaveManager->demoServerMaster()->
+								start( PortOffsetIVS, PortOffsetDemoServer );
 
 	classroomManager = new ClassroomManager;
 
-	demoServerMaster = new DemoServerMaster;
-	demoServerMaster->start( PortOffsetIVS, PortOffsetDemoServer );
 
 }
 
@@ -85,7 +95,6 @@ void deinit( void )
 	personalConfig->flushStore();
 	globalConfig->flushStore();
 
-	delete demoServerMaster;
 	delete classroomManager;
 	delete localCore;
 	delete personalConfig;

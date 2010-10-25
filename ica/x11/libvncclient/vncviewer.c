@@ -186,6 +186,7 @@ rfbClient* rfbGetClient(int bitsPerSample,int samplesPerPixel,
   client->Bell = Dummy;
   client->CurrentKeyboardLedState = 0;
   client->HandleKeyboardLedState = (HandleKeyboardLedStateProc)DummyPoint;
+  client->QoS_DSCP = 0;
 
   client->authScheme = 0;
   client->subAuthScheme = 0;
@@ -288,6 +289,9 @@ rfbBool rfbInitClient(rfbClient* client,int* argc,char** argv) {
       } else if (i+1<*argc && strcmp(argv[i], "-scale") == 0) {
         client->appData.scaleSetting = atoi(argv[i+1]);
         j+=2;
+      } else if (i+1<*argc && strcmp(argv[i], "-qosdscp") == 0) {
+        client->QoS_DSCP = atoi(argv[i+1]);
+        j+=2;
       } else if (i+1<*argc && strcmp(argv[i], "-repeaterdest") == 0) {
 	char* colon=strchr(argv[i+1],':');
 
@@ -327,6 +331,21 @@ rfbBool rfbInitClient(rfbClient* client,int* argc,char** argv) {
   }
 
   if(!rfbInitConnection(client)) {
+	if(argc && argv == NULL)
+	{
+		if( client->sock < 0 )
+		{
+			*argc = -1;
+		}
+		if( client->desktopName == NULL )
+		{
+			*argc = 1;
+		}
+		else
+		{
+			*argc = 0;
+		}
+	}
     rfbClientCleanup(client);
     return FALSE;
   }

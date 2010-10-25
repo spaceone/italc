@@ -1,5 +1,5 @@
 /*
- * DemoServerSlave.h - an IcaSlave providing the demo window
+ * InputLockSlave.h - an IcaSlave providing the input lock functionality
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,26 +23,25 @@
  *
  */
 
-#ifndef _DEMO_SERVER_SLAVE_H
-#define _DEMO_SERVER_SLAVE_H
+#ifndef _INPUT_LOCK_SLAVE_H
+#define _INPUT_LOCK_SLAVE_H
 
 #include "IcaSlave.h"
-#include "ItalcCoreServer.h"
 
-class DemoServerThread;
+class LockWidget;
 
-class DemoServerSlave : public IcaSlave
+class InputLockSlave : public IcaSlave
 {
 public:
-	DemoServerSlave();
-	virtual ~DemoServerSlave();
+	InputLockSlave();
+	virtual ~InputLockSlave();
 
 
 private:
 	virtual bool handleMessage( const Ipc::Msg &m );
 
-	DemoServerThread *m_demoServerThread;
-	ItalcCoreServer m_coreServer;
+	LockWidget *m_lockWidget;
+
 } ;
 
 #endif

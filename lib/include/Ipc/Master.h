@@ -29,7 +29,8 @@
 #include "Ipc/Core.h"
 
 #include <QtCore/QProcess>
-#include <QtNetwork/QLocalServer>
+#include <QtCore/QSignalMapper>
+#include <QtNetwork/QTcpServer>
 
 
 namespace Ipc
@@ -37,12 +38,17 @@ namespace Ipc
 
 class SlaveLauncher;
 
-class Master : public QLocalServer
+class Master : public QTcpServer
 {
 	Q_OBJECT
 public:
-	Master();
+	Master( const QString &applicationFilePath );
 	virtual ~Master();
+
+	const QString & applicationFilePath() const
+	{
+		return m_applicationFilePath;
+	}
 
 	void createSlave( const Ipc::Id &id, SlaveLauncher *slaveLauncher = NULL );
 	void stopSlave( const Ipc::Id &id );
@@ -51,20 +57,21 @@ public:
 	void sendMessage( const Ipc::Id &id, const Ipc::Msg &msg );
 	Ipc::Msg receiveMessage( const Ipc::Id &id );
 
-	virtual bool handleMessage( const Ipc::Msg &msg ) = 0;
+	virtual bool handleMessage( const Ipc::Id &id, const Ipc::Msg &msg ) = 0;
 
 
 private slots:
 	void acceptConnection();
-	void receiveMessages();
+	void receiveMessage( QObject *sock );
 
 
 private:
-	Ipc::Id m_serverId;
+	QString m_applicationFilePath;
+	QSignalMapper m_socketReceiveMapper;
 
 	struct ProcessInformation
 	{
-		QLocalSocket *sock;
+		QTcpSocket *sock;
 		SlaveLauncher *slaveLauncher;
 		QVector<Ipc::Msg> pendingMessages;
 	};

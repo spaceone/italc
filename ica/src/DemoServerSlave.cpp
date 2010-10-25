@@ -27,16 +27,7 @@
 #include <QtNetwork/QHostInfo>
 
 #include "DemoServerSlave.h"
-#include "ItalcCoreServer.h"
 #include "ItalcVncServer.h"
-
-const Ipc::Command DemoServerSlave::StartDemoServer = ItalcCore::Ipc::DemoServer::StartDemoServer;
-const Ipc::Argument DemoServerSlave::UserRole = ItalcCore::Ipc::DemoServer::UserRole;
-const Ipc::Argument DemoServerSlave::SourcePort = ItalcCore::Ipc::DemoServer::SourcePort;
-const Ipc::Argument DemoServerSlave::DestinationPort = ItalcCore::Ipc::DemoServer::DestinationPort;
-
-const Ipc::Command DemoServerSlave::UpdateAllowedHosts = ItalcCore::Ipc::DemoServer::UpdateAllowedHosts;
-const Ipc::Argument DemoServerSlave::AllowedHosts = ItalcCore::Ipc::DemoServer::AllowedHosts;
 
 
 // a helper threading running the VNC reflector
@@ -54,7 +45,10 @@ public:
 protected:
 	virtual void run()
 	{
-		ItalcCoreServer coreServer;	// required for authentication
+		if( ItalcCore::role == ItalcCore::RoleOther )
+		{
+			ItalcCore::role = ItalcCore::RoleTeacher;
+		}
 		ItalcVncServer::runVncReflector( m_srcPort, m_dstPort );
 	}
 
@@ -70,7 +64,8 @@ private:
 
 DemoServerSlave::DemoServerSlave() :
 	IcaSlave(),
-	m_demoServerThread( NULL )
+	m_demoServerThread( NULL ),
+	m_coreServer()
 {
 }
 
@@ -85,18 +80,21 @@ DemoServerSlave::~DemoServerSlave()
 
 bool DemoServerSlave::handleMessage( const Ipc::Msg &m )
 {
-	if( m.cmd() == StartDemoServer )
+	if( m.cmd() == ItalcSlaveManager::DemoServer::StartDemoServer )
 	{
 		ItalcCore::role =
-				static_cast<ItalcCore::UserRoles>( m.argV( UserRole ).toInt() );
+			static_cast<ItalcCore::UserRoles>(
+				m.argV( ItalcSlaveManager::DemoServer::UserRole ).toInt() );
 		m_demoServerThread = new DemoServerThread(
-			m.argV( SourcePort ).toInt(), m.argV( DestinationPort ).toInt() );
+			m.argV( ItalcSlaveManager::DemoServer::SourcePort ).toInt(),
+			m.argV( ItalcSlaveManager::DemoServer::DestinationPort ).toInt() );
 		m_demoServerThread->start();
 		return true;
 	}
-	else if( m.cmd() == UpdateAllowedHosts )
+	else if( m.cmd() == ItalcSlaveManager::DemoServer::UpdateAllowedHosts )
 	{
-		const QStringList allowedHosts = m.argV( AllowedHosts ).toStringList();
+		const QStringList allowedHosts =
+			m.argV( ItalcSlaveManager::DemoServer::AllowedHosts ).toStringList();
 		// resolve IP addresses of all hosts
 		QStringList allowedIPs;
 		foreach( const QString &host, allowedHosts )
@@ -116,7 +114,7 @@ bool DemoServerSlave::handleMessage( const Ipc::Msg &m )
 		}
 
 		// now we can use the list of IP addresses for host-based authentication
-		ItalcCoreServer::instance()->setAllowedIPs( allowedIPs );
+		m_coreServer.setAllowedIPs( allowedIPs );
 
 		return true;
 	}

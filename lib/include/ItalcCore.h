@@ -145,8 +145,10 @@ namespace ItalcCore
 	extern const Command UserInformation;
 	extern const Command StartDemo;
 	extern const Command StopDemo;
-	extern const Command LockDisplay;
-	extern const Command UnlockDisplay;
+	extern const Command LockScreen;
+	extern const Command UnlockScreen;
+	extern const Command LockInput;
+	extern const Command UnlockInput;
 	extern const Command LogonUserCmd;
 	extern const Command LogoutUser;
 	extern const Command DisplayTextMessage;
@@ -157,6 +159,11 @@ namespace ItalcCore
 	extern const Command RestartComputer;
 	extern const Command DisableLocalInputs;
 	extern const Command SetRole;
+	extern const Command StartDemoServer;
+	extern const Command StopDemoServer;
+	extern const Command DemoServerAllowHost;
+	extern const Command DemoServerUnallowHost;
+	extern const Command ReportSlaveStateFlags;
 
 	class Msg
 	{
@@ -247,29 +254,6 @@ namespace ItalcCore
 
 	extern int serverPort;
 	extern UserRoles role;
-
-	// common IPC data between ICA and IMA
-	namespace Ipc
-	{
-
-		extern const ::Ipc::Id IdCoreServer;
-		extern const ::Ipc::Id IdDemoClient;
-		extern const ::Ipc::Id IdDemoServer;
-		extern const ::Ipc::Id IdMessageBox;
-		extern const ::Ipc::Id IdScreenLock;
-		extern const ::Ipc::Id IdSystemTrayIcon;
-
-		namespace DemoServer
-		{
-			extern const ::Ipc::Command StartDemoServer;
-			extern const ::Ipc::Argument UserRole;
-			extern const ::Ipc::Argument SourcePort;
-			extern const ::Ipc::Argument DestinationPort;
-
-			extern const ::Ipc::Command UpdateAllowedHosts;
-			extern const ::Ipc::Argument AllowedHosts;
-		}
-	}
 
 }
 

@@ -58,8 +58,6 @@
 #include "RemoteControlWidget.h"
 
 
-QSystemTrayIcon * __systray_icon = NULL;
-
 
 extern int __ivs_port;
 extern QString __ivs_host;
@@ -122,6 +120,7 @@ void ItalcCoreServer::denyDemoClient( const QString & _host )
 
 MainWindow::MainWindow( int _rctrl_screen ) :
 	QMainWindow(/* 0, Qt::FramelessWindowHint*/ ),
+	m_systemTrayIcon( this ),
 	m_openedTabInSideBar( 1 ),
 	m_rctrlLock(),
 	m_remoteControlWidget( NULL ),
@@ -395,10 +394,10 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 	icon.addFile( ":/resources/icon22.png" );
 	icon.addFile( ":/resources/icon32.png" );
 
-	__systray_icon = new QSystemTrayIcon( icon, this );
-	__systray_icon->setToolTip( tr( "iTALC Master Control" ) );
-	__systray_icon->show();
-	connect( __systray_icon, SIGNAL( activated(
+	m_systemTrayIcon.setIcon( icon );
+	m_systemTrayIcon.setToolTip( tr( "iTALC Master Control" ) );
+	m_systemTrayIcon.show();
+	connect( &m_systemTrayIcon, SIGNAL( activated(
 					QSystemTrayIcon::ActivationReason ) ),
 		this, SLOT( handleSystemTrayEvent(
 					QSystemTrayIcon::ActivationReason ) ) );
@@ -417,8 +416,7 @@ MainWindow::~MainWindow()
 	// also delets clients
 	delete m_workspace;
 
-	__systray_icon->hide();
-	delete __systray_icon;
+	m_systemTrayIcon.hide();
 }
 
 
@@ -468,7 +466,7 @@ void MainWindow::handleSystemTrayEvent( QSystemTrayIcon::ActivationReason _r )
 		case QSystemTrayIcon::Context:
 		{
 			QMenu m( this );
-			m.addAction( __systray_icon->toolTip() )->setEnabled( false );
+			m.addAction( m_systemTrayIcon.toolTip() )->setEnabled( false );
 			foreach( QAction * a, m_sysTrayActions )
 			{
 				m.addAction( a );

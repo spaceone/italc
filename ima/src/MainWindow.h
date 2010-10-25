@@ -34,6 +34,7 @@
 #include "ui_MainWindow.h"
 
 #include "Client.h"
+#include "ItalcSlaveManager.h"
 #include "SnapshotList.h"
 
 
@@ -60,7 +61,6 @@ public:
 	{
 		return m_workspace;
 	}
-
 
 	void checkModeButton( int _id )
 	{
@@ -138,6 +138,7 @@ private:
 
 	QButtonGroup * m_modeGroup;
 
+	QSystemTrayIcon m_systemTrayIcon;
 	QList<QAction *> m_sysTrayActions;
 
 	QWidget * m_sideBarWidget;

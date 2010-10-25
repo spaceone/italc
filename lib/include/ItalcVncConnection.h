@@ -32,6 +32,7 @@
 #include <QtCore/QQueue>
 #include <QtCore/QReadWriteLock>
 #include <QtCore/QThread>
+#include <QtCore/QWaitCondition>
 
 #include "ItalcCore.h"
 #include "FastQImage.h"
@@ -66,22 +67,40 @@ public:
 		NumQualityLevels
 	} ;
 
-	explicit ItalcVncConnection( QObject * parent = 0 );
+	enum States
+	{
+		Disconnected,
+		HostUnreachable,
+		AuthenticationFailed,
+		ConnectionFailed,
+		Connected
+	} ;
+	typedef States State;
+
+	explicit ItalcVncConnection( QObject *parent = 0 );
 	virtual ~ItalcVncConnection();
+
 	const QImage image( int x = 0, int y = 0, int w = 0, int h = 0 );
 	void setImage( const QImage &img );
 	void emitUpdated( int x, int y, int w, int h );
 	void emitCursorShapeUpdated( const QImage &cursorShape, int xh, int yh );
-	void emitGotCut( const QString & text );
+	void emitGotCut( const QString &text );
 	void stop();
 	void reset( const QString &host );
 	void setHost( const QString &host );
-	void setPort( int _port );
+	void setPort( int port );
+
+	State state() const
+	{
+		return m_state;
+	}
 
 	bool isConnected() const
 	{
-		return m_connected && isRunning();
+		return state() == Connected && isRunning();
 	}
+
+	bool waitForConnected( int timeout = 10000 ) const;
 
 	void setItalcAuthType( ItalcAuthType t )
 	{
@@ -93,9 +112,9 @@ public:
 		return m_italcAuthType;
 	}
 
-	void setQuality( QualityLevels _q )
+	void setQuality( QualityLevels qualityLevel )
 	{
-		m_quality = _q;
+		m_quality = qualityLevel;
 	}
 
 	QualityLevels quality() const
@@ -156,6 +175,7 @@ public slots:
 
 protected:
 	virtual void run();
+	void doConnection();
 
 
 private:
@@ -173,6 +193,7 @@ private:
 	QualityLevels m_quality;
 	QString m_host;
 	int m_port;
+	QWaitCondition m_updateIntervalSleeper;
 	int m_framebufferUpdateInterval;
 	QMutex m_mutex;
 	QReadWriteLock m_imgLock;
@@ -183,7 +204,7 @@ private:
 	FastQImage m_scaledScreen;
 	QSize m_scaledSize;
 
-	volatile bool m_connected;
+	volatile State m_state;
 	volatile bool m_stopped;
 
 

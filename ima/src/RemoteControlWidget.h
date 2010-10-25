@@ -24,7 +24,7 @@
 #ifndef _REMOTE_CONTROL_WIDGET_H
 #define _REMOTE_CONTROL_WIDGET_H
 
-#include <QtCore/QTime>
+#include <QtCore/QTimeLine>
 #include <QtGui/QWidget>
 
 #include "FastQImage.h"
@@ -50,28 +50,25 @@ public slots:
 
 
 protected:
-	virtual void leaveEvent( QEvent * _e )
-	{
-		disappear();
-		QWidget::leaveEvent( _e );
-	}
-
+	virtual void leaveEvent( QEvent * _e );
 	virtual void paintEvent( QPaintEvent * _pe );
 
 
 private slots:
-	void updatePosition( void );
+	void updateConnectionAnimation();
+	void updatePosition();
 	void startConnection( void );
 	void connectionEstablished( void );
 
 
 private:
 	RemoteControlWidget * m_parent;
-	bool m_disappear;
+	QTimeLine m_showHideTimeLine;
+	QTimeLine m_iconStateTimeLine;
+
 	bool m_connecting;
 	QImage m_icon;
 	FastQImage m_iconGray;
-	QTime m_iconState;
 
 } ;
 
@@ -103,12 +100,12 @@ protected:
 
 
 private slots:
-	void checkKeyEvent( uint32_t, bool );
+	void checkKeyEvent( int, bool );
 
 
 private:
 	VncView * m_vncView;
-	ItalcCoreConnection * m_icc;
+	ItalcCoreConnection *m_coreConnection;
 	RemoteControlWidgetToolBar * m_toolBar;
 	MainWindow * m_mainWindow;
 

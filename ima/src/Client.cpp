@@ -29,6 +29,7 @@
 #include "ItalcVncConnection.h"
 #include "ItalcCoreConnection.h"
 #include "MasterCore.h"
+#include "PersonalConfig.h"
 #include "ClassroomManager.h"
 #include "MainWindow.h"
 #include "MasterUI.h"
@@ -55,6 +56,8 @@ Client::Client( const QString & _host,
 {
 	m_vncConn->setHost( m_host );
 	m_vncConn->setQuality( ItalcVncConnection::ThumbnailQuality );
+	m_vncConn->setFramebufferUpdateInterval(
+				MasterCore::personalConfig->clientUpdateInterval() * 1000 );
 }
 
 
@@ -103,11 +106,12 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				MasterCore::demoServerMaster->unallowHost( m_host );
+				MasterCore::italcSlaveManager->demoServerMaster()->
+														unallowHost( m_host );
 				m_coreConn->stopDemo();
 				break;
 			case Mode_Locked:
-				m_coreConn->unlockDisplay();
+				m_coreConn->unlockScreen();
 				break;
 		}
 
@@ -119,13 +123,16 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				MasterCore::demoServerMaster->allowHost( m_host );
+				MasterCore::italcSlaveManager->demoServerMaster()->
+														allowHost( m_host );
 				m_coreConn->startDemo(
-								MasterCore::demoServerMaster->serverPort(),
+								QString(),// let client guess IP from connection
+								MasterCore::italcSlaveManager->
+									demoServerMaster()->serverPort(),
 								m_mode == Mode_FullscreenDemo );
 				break;
 			case Mode_Locked:
-				m_coreConn->lockDisplay();
+				m_coreConn->lockScreen();
 				break;
 		}
 	}
@@ -134,7 +141,7 @@ void Client::changeMode( const Modes _new_mode )
 	else if( m_mode == Mode_Overview )
 	{
 		m_coreConn->stopDemo();
-		m_coreConn->unlockDisplay();
+		m_coreConn->unlockScreen();
 	}
 }
 
@@ -152,7 +159,7 @@ void Client::changeMode( const Modes _new_mode )
 	else
 	{
 		m_vncConn->reset( m_host );
-		m_user = "";
+		m_user = QString();
 	}
 }*/
 
@@ -238,6 +245,9 @@ void Client::snapshot()
 
 void Client::powerOn()
 {
+	// we have to send the wake-on-LAN packets with root privileges,
+	// therefore let the local ICA do the job (as it usually is running
+	// with higher privileges)
 	MasterCore::localCoreService->powerOnComputer( m_mac );
 }
 

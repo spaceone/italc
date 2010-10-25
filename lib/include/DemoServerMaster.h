@@ -1,5 +1,5 @@
 /*
- * MasterProcess.h - MasterProcess which manages (GUI) slave apps
+ * DemoServerMaster.h - DemoServerMaster which manages (GUI) slave apps
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,46 +23,47 @@
  *
  */
 
-#ifndef _MASTER_PROCESS_H
-#define _MASTER_PROCESS_H
+#ifndef _DEMO_SERVER_MASTER_H
+#define _DEMO_SERVER_MASTER_H
 
-#include "Ipc/Master.h"
+#include <QtCore/QStringList>
 
+class ItalcSlaveManager;
 
-class MasterProcess : protected Ipc::Master
+class DemoServerMaster
 {
-	Q_OBJECT
 public:
-	MasterProcess();
-	virtual ~MasterProcess();
+	DemoServerMaster( ItalcSlaveManager *slaveManager );
+	virtual ~DemoServerMaster();
 
-	enum AccessDialogResult
+	void start( int sourcePort, int destinationPort );
+	void stop();
+	void updateAllowedHosts();
+
+	void allowHost( const QString &host )
 	{
-		AccessYes,
-		AccessNo,
-		AccessAlways,
-		AccessNever
-	} ;
+		m_allowedHosts += host;
+		updateAllowedHosts();
+	}
 
+	void unallowHost( const QString &host )
+	{
+		m_allowedHosts.removeAll( host );
+		updateAllowedHosts();
+	}
 
-public slots:
-	void startDemo( const QString &masterHost, bool fullscreen);
-	void stopDemo();
-
-	void lockDisplay();
-	void unlockDisplay();
-
-	void messageBox( const QString &msg );
-	void setSystemTrayToolTip( const QString &tooltip );
-	void systemTrayMessage( const QString &title, const QString &msg );
-
-	AccessDialogResult showAccessDialog( const QString &host );
+	int serverPort() const
+	{
+		return m_serverPort;
+	}
 
 
 private:
-	virtual bool handleMessage( const Ipc::Msg &m );
+	ItalcSlaveManager *m_slaveManager;
+
+	QStringList m_allowedHosts;
+	int m_serverPort;
 
 } ;
-
 
 #endif

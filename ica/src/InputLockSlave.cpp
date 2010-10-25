@@ -1,5 +1,5 @@
 /*
- * DemoServerMaster.h - DemoServerMaster which manages (GUI) slave apps
+ * InputLockSlave.h - an IcaSlave providing the input lock functionality
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,45 +23,29 @@
  *
  */
 
-#ifndef _DEMO_SERVER_MASTER_H
-#define _DEMO_SERVER_MASTER_H
+#include "LockWidget.h"
+#include "InputLockSlave.h"
 
-#include "Ipc/Master.h"
 
-class DemoServerMaster : protected Ipc::Master
+InputLockSlave::InputLockSlave() :
+	IcaSlave(),
+	m_lockWidget( new LockWidget( LockWidget::DesktopVisible ) )
 {
-public:
-	DemoServerMaster();
-	virtual ~DemoServerMaster();
-
-	void start( int sourcePort, int destinationPort );
-	void stop();
-	void updateAllowedHosts();
-
-	void allowHost( const QString &host )
-	{
-		m_allowedHosts += host;
-		updateAllowedHosts();
-	}
-
-	void unallowHost( const QString &host )
-	{
-		m_allowedHosts.removeAll( host );
-		updateAllowedHosts();
-	}
-
-	int serverPort() const
-	{
-		return m_serverPort;
-	}
+}
 
 
-private:
-	virtual bool handleMessage( const Ipc::Msg &m );
 
-	QStringList m_allowedHosts;
-	int m_serverPort;
 
-} ;
+InputLockSlave::~InputLockSlave()
+{
+	delete m_lockWidget;
+}
 
-#endif
+
+
+
+bool InputLockSlave::handleMessage( const Ipc::Msg &m )
+{
+	return false;
+}
+

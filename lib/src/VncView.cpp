@@ -124,8 +124,7 @@ bool VncView::eventFilter(QObject *obj, QEvent *event)
 			event->type() == QEvent::MouseButtonDblClick ||
 			event->type() == QEvent::MouseButtonPress ||
 			event->type() == QEvent::MouseButtonRelease ||
-			event->type() == QEvent::Wheel ||
-			event->type() == QEvent::MouseMove )
+			event->type() == QEvent::Wheel )
 		return true;
 	}
 
@@ -191,12 +190,6 @@ void VncView::setViewOnly( bool _vo )
 	}
 	else
 	{
-#ifdef ITALC_BUILD_LINUX
-		// for some reason we have to grab mouse and then release
-		// again to make complete keyboard-grabbing working ... ??
-		grabMouse();
-		releaseMouse();
-#endif
 		grabKeyboard();
 		updateLocalCursor();
 	}
@@ -518,7 +511,14 @@ void VncView::keyEventHandler( QKeyEvent * _ke )
 
 	if( key )
 	{
+		// forward key event to the VNC connection
 		m_vncConn.keyEvent( key, pressed );
+
+		// signal key event - used by RemoteControlWidget to close itself
+		// when pressing Esc
+		emit keyEvent( key, pressed );
+
+		// inform Qt that we handled the key event
 		_ke->accept();
 	}
 }
@@ -544,7 +544,7 @@ void VncView::unpressModifiers()
 QPoint VncView::mapToFramebuffer( const QPoint &pos )
 {
 	const QSize fbs = framebufferSize();
-	if( !fbs.isValid() )
+	if( fbs.isEmpty() )
 	{
 		return QPoint( 0, 0 );
 	}
@@ -564,7 +564,7 @@ QPoint VncView::mapToFramebuffer( const QPoint &pos )
 
 QRect VncView::mapFromFramebuffer( const QRect &r )
 {
-	if( !framebufferSize().isValid() )
+	if( framebufferSize().isEmpty() )
 	{
 		return QRect();
 	}
@@ -585,7 +585,7 @@ void VncView::updateLocalCursor()
 	if( !isViewOnly() && !m_cursorShape.isNull() )
 	{
 		float scale = 1;
-		if( scaledSize().isValid() && framebufferSize().isValid() )
+		if( !scaledSize().isEmpty() && !framebufferSize().isEmpty() )
 		{
 			scale = (float) scaledSize().width() / framebufferSize().width();
 		}
@@ -629,30 +629,30 @@ bool VncView::event( QEvent * event )
 
 void VncView::paintEvent( QPaintEvent *paintEvent )
 {
-	if( m_frame.isNull() || m_frame.format() == QImage::Format_Invalid )
-	{
-		QWidget::paintEvent( paintEvent );
-		return;
-	}
-
 	paintEvent->accept();
 
 	QPainter p( this );
 
-	const QSize ss = scaledSize();
-	const float scale = ss.isValid() ?
-			(float) ss.width() / framebufferSize().width() : 1;
+	if( m_frame.isNull() || m_frame.format() == QImage::Format_Invalid )
+	{
+		p.fillRect( paintEvent->rect(), Qt::black );
+		return;
+	}
+
+	const QSize sSize = scaledSize();
+	const float scale = sSize.isEmpty() ? 1 :
+			(float) sSize.width() / framebufferSize().width();
 	if( m_repaint )
 	{
-		if( ss.isValid() )
-		{
-			FastQImage i = m_frame;
-			p.drawImage( 0, 0, m_frame.scaled( ss ) );
-		}
-		else
+		if( sSize.isEmpty() )
 		{
 			p.drawImage( QRect( m_x, m_y, m_w, m_h ),
 					m_frame.copy( m_x, m_y, m_w, m_h ) );
+		}
+		else
+		{
+			FastQImage i = m_frame;
+			p.drawImage( 0, 0, m_frame.scaled( sSize ) );
 		}
 	}
 	else
@@ -682,13 +682,13 @@ void VncView::paintEvent( QPaintEvent *paintEvent )
 	}
 
 	// draw black borders if neccessary
-	const int fbw = ss.isValid() ? ss.width() :
+	const int fbw = sSize.isValid() ? sSize.width() :
 				m_vncConn.framebufferSize().width();
 	if( fbw < width() )
 	{
 		p.fillRect( fbw, 0, width() - fbw, height(), Qt::black );
 	}
-	const int fbh = ss.isValid() ? ss.height() :
+	const int fbh = sSize.isValid() ? sSize.height() :
 				m_vncConn.framebufferSize().height();
 	if( fbh < height() )
 	{
@@ -779,8 +779,11 @@ void VncView::mouseEventHandler( QMouseEvent * _me )
 		}
 	}
 
-	const QPoint p = mapToFramebuffer( _me->pos() );
-	m_vncConn.mouseEvent( p.x(), p.y(), m_buttonMask );
+	if( !m_viewOnly )
+	{
+		const QPoint p = mapToFramebuffer( _me->pos() );
+		m_vncConn.mouseEvent( p.x(), p.y(), m_buttonMask );
+	}
 }
 
 
@@ -794,10 +797,10 @@ void VncView::updateImage(int x, int y, int w, int h)
 	m_w = w;
 	m_h = h;
 
-	const QSize ss = scaledSize();
-	const float scale = ss.isValid() ?
-			(float) ss.width() / framebufferSize().width() : 1;
-	if( ss.isValid() )
+	const QSize sSize = scaledSize();
+	const float scale = sSize.isEmpty() ? 1 :
+			(float) sSize.width() / framebufferSize().width();
+	if( !sSize.isEmpty() )
 	{
 		m_x-=1;
 		m_y-=1;

@@ -28,8 +28,8 @@
 
 class ItalcVncConnection;
 class ItalcCoreConnection;
+class ItalcSlaveManager;
 class ClassroomManager;
-class DemoServerMaster;
 class GlobalConfig;
 class PersonalConfig;
 class MainWindow;
@@ -46,11 +46,11 @@ namespace MasterCore
 	extern GlobalConfig * globalConfig;
 	extern PersonalConfig * personalConfig;
 
+	extern ItalcSlaveManager *italcSlaveManager;
+
 	extern ItalcCoreConnection * localCoreService;
 
 	extern ClassroomManager * classroomManager;
-
-	extern DemoServerMaster * demoServerMaster;
 
 	// UI objects
 	extern MainWindow * mainWindow;

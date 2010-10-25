@@ -1,5 +1,5 @@
 /*
- * ScreenLockSlaveLauncher.h - a SlaveLauncher for the ScreenLockSlave
+ * AccessDialogSlave.h - an IcaSlave providing the access dialog
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,41 +23,25 @@
  *
  */
 
-#ifndef _SCREEN_LOCK_SLAVE_LAUNCHER_H
-#define _SCREEN_LOCK_SLAVE_LAUNCHER_H
+#ifndef _ACCESS_DIALOG_SLAVE_H
+#define _ACCESS_DIALOG_SLAVE_H
 
-#include <italcconfig.h>
+#include "IcaSlave.h"
+#include "ItalcSlaveManager.h"
 
-#include "Ipc/SlaveLauncher.h"
 
-#ifdef ITALC_BUILD_WIN32
-#include <windows.h>
-#else
-#include "Ipc/QtSlaveLauncher.h"
-#endif
-
-class ScreenLockSlaveLauncher : public Ipc::SlaveLauncher
+class AccessDialogSlave : public IcaSlave
 {
 public:
-	ScreenLockSlaveLauncher();
-	~ScreenLockSlaveLauncher();
-
-	virtual void start( const QStringList &arguments );
-	virtual void stop();
-	virtual bool isRunning() const;
+	AccessDialogSlave();
+	virtual ~AccessDialogSlave();
 
 
 private:
-#ifdef ITALC_BUILD_WIN32
-	HDESK m_newDesktop;
-	HDESK m_origThreadDesktop;
-	HDESK m_origInputDesktop;
-	HANDLE m_lockProcess;
-#else
-	Ipc::QtSlaveLauncher *m_launcher;
-#endif
-};
+	ItalcSlaveManager::AccessDialogResult exec( const QString &);
+	virtual bool handleMessage( const Ipc::Msg &m );
 
+} ;
 
 #endif
 

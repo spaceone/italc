@@ -46,7 +46,7 @@ ItalcCoreServer * ItalcCoreServer::_this = NULL;
 ItalcCoreServer::ItalcCoreServer() :
 	QObject(),
 	m_allowedIPs(),
-	m_masterProcess()
+	m_slaveManager()
 {
 	Q_ASSERT( _this == NULL );
 	_this = this;
@@ -197,42 +197,75 @@ int ItalcCoreServer::handleItalcClientMessage( socketDispatcher sock,
 	}
 	else if( cmd == ItalcCore::StartDemo )
 	{
-		QString host;
+		QString host = msgIn.arg( "host" );
 		QString port = msgIn.arg( "port" );
-		if( port.isEmpty() )
+		// no host given?
+		if( host.isEmpty() )
 		{
-			port = "11200";	// TODO: convert from global constant
-		}
-		if( !port.contains( ':' ) )
-		{
+			// then guess IP from remote peer address
 			const int MAX_HOST_LEN = 255;
 			char hostArr[MAX_HOST_LEN+1];
-			sock( hostArr, MAX_HOST_LEN,
-					SocketGetPeerAddress, user );
+			sock( hostArr, MAX_HOST_LEN, SocketGetPeerAddress, user );
 			hostArr[MAX_HOST_LEN] = 0;
-			host = hostArr + QString( ":" ) + port;
+			host = hostArr;
 		}
-		else
+		if( port.isEmpty() )
 		{
-			host = port;
+			port = QString::number( PortOffsetDemoServer );
 		}
-		m_masterProcess.startDemo( host, msgIn.arg( "fullscreen" ).toInt() );
+		if( !host.contains( ':' ) )
+		{
+			host += ':' + port;
+		}
+		m_slaveManager.startDemo( host, msgIn.arg( "fullscreen" ).toInt() );
 	}
 	else if( cmd == ItalcCore::StopDemo )
 	{
-		m_masterProcess.stopDemo();
+		m_slaveManager.stopDemo();
 	}
 	else if( cmd == ItalcCore::DisplayTextMessage )
 	{
-		m_masterProcess.messageBox( msgIn.arg( "text" ) );
+		m_slaveManager.messageBox( msgIn.arg( "text" ) );
 	}
-	else if( cmd == ItalcCore::LockDisplay )
+	else if( cmd == ItalcCore::LockScreen )
 	{
-		m_masterProcess.lockDisplay();
+		m_slaveManager.lockScreen();
 	}
-	else if( cmd == ItalcCore::UnlockDisplay )
+	else if( cmd == ItalcCore::UnlockScreen )
 	{
-		m_masterProcess.unlockDisplay();
+		m_slaveManager.unlockScreen();
+	}
+	else if( cmd == ItalcCore::LockInput )
+	{
+		m_slaveManager.lockInput();
+	}
+	else if( cmd == ItalcCore::UnlockInput )
+	{
+		m_slaveManager.unlockInput();
+	}
+	else if( cmd == ItalcCore::StartDemoServer )
+	{
+		m_slaveManager.demoServerMaster()->start(
+			msgIn.arg( "sourceport" ).toInt(),
+			msgIn.arg( "destinationport" ).toInt() );
+	}
+	else if( cmd == ItalcCore::StopDemoServer )
+	{
+		m_slaveManager.demoServerMaster()->stop();
+	}
+	else if( cmd == ItalcCore::DemoServerAllowHost )
+	{
+		m_slaveManager.demoServerMaster()->allowHost( msgIn.arg( "host" ) );
+	}
+	else if( cmd == ItalcCore::DemoServerUnallowHost )
+	{
+		m_slaveManager.demoServerMaster()->unallowHost( msgIn.arg( "host" ) );
+	}
+	else if( cmd == ItalcCore::ReportSlaveStateFlags )
+	{
+		ItalcCore::Msg( &sdev, cmd ).
+				addArg( "slavestateflags", m_slaveManager.slaveStateFlags() ).
+					send();
 	}
 	// TODO: handle plugins
 	else
@@ -253,7 +286,6 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 	char host[MAX_HOST_LEN+1];
 	sd( host, MAX_HOST_LEN, SocketGetPeerAddress, user );
 	host[MAX_HOST_LEN] = 0;
-	static QStringList __denied_hosts, __allowed_hosts;
 
 	SocketDevice sdev( sd, user );
 
@@ -291,7 +323,7 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 
 		// authentication via DSA-challenge/-response
 		case ItalcAuthDSA:
-			if( doKeyBasedAuth( sdev ) )
+			if( doKeyBasedAuth( sdev, host ) )
 			{
 				result = rfbVncAuthOK;
 			}
@@ -303,7 +335,12 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 
 	if( result != rfbVncAuthOK )
 	{
-		errorMsgAuth( host );
+		// only report about failed authentications for hosts that are not
+		// blacklisted already
+		if( !m_manuallyDeniedHosts.contains( host ) )
+		{
+			errorMsgAuth( host );
+		}
 		return false;
 	}
 
@@ -313,56 +350,9 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 
 
 
-/*ItalcCoreServer::AccessDialogResult ItalcCoreServer::showAccessDialog(
-							const QString & _host )
-{
-	QMessageBox m( QMessageBox::Question,
-			tr( "Confirm access" ),
-			tr( "Somebody at host %1 tries to access your screen. "
-				"Do you want to grant him/her access?" ).
-								arg( _host ),
-				QMessageBox::Yes | QMessageBox::No );
-
-	QPushButton * never_btn = m.addButton( tr( "Never for this session" ),
-							QMessageBox::NoRole );
-	QPushButton * always_btn = m.addButton( tr( "Always for this session" ),
-							QMessageBox::YesRole );
-	m.setDefaultButton( never_btn );
-	m.setEscapeButton( m.button( QMessageBox::No ) );
-
-	LocalSystem::activateWindow( &m );
-
-	const int res = m.exec();
-	if( m.clickedButton() == never_btn )
-	{
-		return AccessNever;
-	}
-	else if( m.clickedButton() == always_btn )
-	{
-		return AccessAlways;
-	}
-	else if( res == QMessageBox::No )
-	{
-		return AccessNo;
-	}
-	return AccessYes;
-}*/
-
-
-
-
-/*void ItalcCoreServer::displayTextMessage( const QString & _msg )
-{
-	new DecoratedMessageBox( tr( "Message from teacher" ), _msg,
-					QPixmap( ":/resources/message.png" ) );
-}*/
-
-
-
-
 void ItalcCoreServer::errorMsgAuth( const QString &ip )
 {
-	_this->m_masterProcess.systemTrayMessage(
+	_this->m_slaveManager.systemTrayMessage(
 			tr( "Authentication error" ),
 			tr( "Somebody (IP: %1) tried to access this computer "
 					"but could not authenticate itself "
@@ -372,7 +362,7 @@ void ItalcCoreServer::errorMsgAuth( const QString &ip )
 
 
 
-bool ItalcCoreServer::doKeyBasedAuth( SocketDevice &sdev )
+bool ItalcCoreServer::doKeyBasedAuth( SocketDevice &sdev, const QString &host )
 {
 	// generate data to sign and send to client
 	const QByteArray chall = DsaKey::generateChallenge();
@@ -381,38 +371,28 @@ bool ItalcCoreServer::doKeyBasedAuth( SocketDevice &sdev )
 	// get user-role
 	const ItalcCore::UserRoles urole =
 				static_cast<ItalcCore::UserRoles>( sdev.read().toInt() );
-	if( ItalcCore::role != ItalcCore::RoleOther )
+	if( ItalcCore::role != ItalcCore::RoleOther &&
+		host != QHostAddress( QHostAddress::LocalHost ).toString() )
 	{
-		/*	if( __denied_hosts.contains( host ) )
+		if( m_manuallyDeniedHosts.contains( host ) )
+		{
+			return false;
+		}
+		if( !m_manuallyAllowedHosts.contains( host ) )
+		{
+			switch( m_slaveManager.execAccessDialog( host ) )
 			{
-				result = ItalcAuthFailed;
-				break;
-			}
-			if( !__allowed_hosts.contains( host ) )
-			{
-				bool failed = true;
-				switch( doGuiOp( ItalcCore::AccessDialog, host ) )
-				{
-					case AccessAlways:
-						__allowed_hosts += host;
-					case AccessYes:
-						failed = false;
-						break;
-					case AccessNever:
-						__denied_hosts += host;
-					case AccessNo:
-						break;
-				}
-				if( failed )
-				{
-					result = ItalcAuthFailed;
+				case ItalcSlaveManager::AccessAlways:
+					m_manuallyAllowedHosts += host;
+				case ItalcSlaveManager::AccessYes:
 					break;
-				}
+				case ItalcSlaveManager::AccessNever:
+					m_manuallyDeniedHosts += host;
+				case ItalcSlaveManager::AccessNo:
+				default:
+					return false;
 			}
-			else*/
-			{
-				return false;
-			}
+		}
 	}
 
 	// now try to verify received signed data using public key of the user

@@ -154,10 +154,10 @@ IF(${ITALCCONFIG} IS_NEWER_THAN ${RFBCONFIG})
 	EXECUTE_PROCESS(COMMAND sed -e "s/ITALC_/LIBVNCSERVER_/g" INPUT_FILE ${ITALCCONFIG} OUTPUT_FILE ${RFBCONFIG})
 ENDIF(${ITALCCONFIG} IS_NEWER_THAN ${RFBCONFIG})
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions ${CXXFLAGS}")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CFLAGS}")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fno-exceptions ${CXXFLAGS}")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall ${CFLAGS}")
 IF(ITALC_BUILD_WIN32)
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-attributes")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-attributes -Wno-pragmas")
 ELSE()
 	SET(OPENSSL_LIBRARIES ${OPENSSL_LIBRARIES} -lcrypto)
 ENDIF(ITALC_BUILD_WIN32)
@@ -175,6 +175,7 @@ ADD_SUBDIRECTORY(lib)
 ADD_SUBDIRECTORY(ica)
 ADD_SUBDIRECTORY(ima)
 
+INSTALL()
 
 #
 # add tarball-target
@@ -184,7 +185,7 @@ ADD_CUSTOM_TARGET(dist
 			COMMAND make clean
 			COMMAND rm -rf ${TMP}
 			COMMAND mkdir -p ${TMP}
-			COMMAND cp AUTHORS build_mingw32 ChangeLog CMakeLists.txt configure COPYING INSTALL italcconfig.h.in README TODO ${TMP}
+			COMMAND cp AUTHORS build_mingw32 ChangeLog CMakeLists.txt COPYING INSTALL italcconfig.h.in italc.spec.in README TODO ${TMP}
 			COMMAND cp -r cmake lib ica ima ${TMP}
 			COMMAND rm -rf `find ${TMP} -type d -name ".svn"`  `find ${TMP} -name cmake_install.cmake` `find ${TMP} -name Makefile` `find ${TMP} -type d -name CMakeFiles` ${TMP}/CMakeCache.txt
 			COMMAND tar cjf italc-${VERSION}.tar.bz2 ${TMP}

@@ -26,6 +26,7 @@
 #define _ITALC_CORE_CONNECTION_H
 
 #include "ItalcCore.h"
+#include "ItalcSlaveManager.h"
 #include "ItalcVncConnection.h"
 
 
@@ -33,52 +34,82 @@ class ItalcCoreConnection : public QObject
 {
 	Q_OBJECT
 public:
-	ItalcCoreConnection( ItalcVncConnection * _ivc );
+	ItalcCoreConnection( ItalcVncConnection *vncConnection );
 	~ItalcCoreConnection();
 
-	ItalcVncConnection * vncConnection( void )
+	ItalcVncConnection *vncConnection()
 	{
-		return m_ivc;
+		return m_vncConn;
 	}
 
-	inline bool isConnected( void ) const
+	ItalcVncConnection::State state() const
 	{
-		return m_ivc->isConnected();
+		return m_vncConn->state();
 	}
 
-	inline const QString & user( void ) const
+	inline bool isConnected() const
+	{
+		return m_vncConn->isConnected();
+	}
+
+	inline const QString & user() const
 	{
 		return m_user;
 	}
 
-	inline const QString & userHomeDir( void ) const
+	inline const QString & userHomeDir() const
 	{
 		return m_userHomeDir;
 	}
 
-	void sendGetUserInformationRequest( void );
-	void execCmds( const QString & _cmd );
-	void startDemo( int _port, bool _full_screen = false );
-	void stopDemo( void );
-	void lockDisplay( void );
-	void unlockDisplay( void );
-	void logonUser( const QString & _uname, const QString & _pw,
-						const QString & _domain );
-	void logoutUser( void );
-	void displayTextMessage( const QString & _msg );
-	void sendFile( const QString & _fname );
-	void collectFiles( const QString & _nfilter );
+	int slaveStateFlags() const
+	{
+		return m_slaveStateFlags;
+	}
 
-	void powerOnComputer( const QString & _mac );
-	void powerDownComputer( void );
-	void restartComputer( void );
-	void disableLocalInputs( bool _disabled );
+#define GEN_SLAVE_STATE_HELPER(x)									\
+			bool is##x() const										\
+			{														\
+				return slaveStateFlags() & ItalcSlaveManager::x;	\
+			}
 
-	void setRole( const ItalcCore::UserRoles _role );
+	GEN_SLAVE_STATE_HELPER(DemoServerRunning)
+	GEN_SLAVE_STATE_HELPER(DemoClientRunning)
+	GEN_SLAVE_STATE_HELPER(ScreenLockRunning)
+	GEN_SLAVE_STATE_HELPER(InputLockRunning)
+	GEN_SLAVE_STATE_HELPER(SystemTrayIconRunning)
+	GEN_SLAVE_STATE_HELPER(MessageBoxRunning)
+
+	void sendGetUserInformationRequest();
+	void execCmds( const QString &cmd );
+	void startDemo( const QString &host, int port, bool fullscreen = false );
+	void stopDemo();
+	void lockScreen();
+	void unlockScreen();
+	void lockInput();
+	void unlockInput();
+	void logonUser( const QString &uname, const QString &pw,
+						const QString &domain );
+	void logoutUser();
+	void displayTextMessage( const QString &msg );
+
+	void powerOnComputer( const QString &mac );
+	void powerDownComputer();
+	void restartComputer();
+	void disableLocalInputs( bool disabled );
+
+	void setRole( const ItalcCore::UserRole role );
+
+	void startDemoServer( int sourcePort, int destinationPort );
+	void stopDemoServer();
+	void demoServerAllowHost( const QString &host );
+	void demoServerUnallowHost( const QString &host );
+
+	void reportSlaveStateFlags();
 
 
 private slots:
-	void initNewClient( rfbClient * _cl );
+	void initNewClient( rfbClient *client );
 
 
 private:
@@ -86,14 +117,15 @@ private:
 						rfbServerToClientMsg *msg );
 
 	bool handleServerMessage( rfbClient *cl, uint8_t msg );
-	void enqueueMessage( const ItalcCore::Msg & _msg );
+	void enqueueMessage( const ItalcCore::Msg &msg );
 
 
-	ItalcVncConnection * m_ivc;
-	SocketDevice m_socketDev;
+	ItalcVncConnection *m_vncConn;
 
 	QString m_user;
 	QString m_userHomeDir;
+
+	int m_slaveStateFlags;
 
 } ;
 

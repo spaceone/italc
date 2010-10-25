@@ -24,25 +24,21 @@
  */
 
 #include <QtCore/QCoreApplication>
+#include <QtNetwork/QHostAddress>
 
 #include "Ipc/Slave.h"
 
 namespace Ipc
 {
 
-Slave::Slave( const Ipc::Id &masterId, const Ipc::Id &slaveId) :
-	QLocalSocket()
+Slave::Slave( const Ipc::Id &masterId, const Ipc::Id &slaveId ) :
+	QTcpSocket(),
+	m_slaveId( slaveId )
 {
-	connectToServer( masterId );
-	if( waitForConnected( 5000 ) &&
-		Ipc::Msg().receive( this ).cmd() == Ipc::Commands::Identify )
-	{
-		connect( this, SIGNAL( readyRead() ),
-					this, SLOT( receiveMessage() ) );
-		Ipc::Msg( Ipc::Commands::Identify ).
-				addArg( Ipc::Arguments::Id, slaveId ).
-			send( this );
-	}
+	connect( this, SIGNAL( readyRead() ),
+				this, SLOT( receiveMessage() ) );
+
+	connectToHost( QHostAddress::LocalHost, masterId.toInt() );
 }
 
 
@@ -65,6 +61,13 @@ void Slave::receiveMessage()
 			{
 				handled = true;
 				QCoreApplication::quit();
+			}
+			else if( m.cmd() == Ipc::Commands::Identify )
+			{
+				Ipc::Msg( Ipc::Commands::Identify ).
+					addArg( Ipc::Arguments::Id, m_slaveId ).
+						send( this );
+				handled = true;
 			}
 
 			if( !handled )

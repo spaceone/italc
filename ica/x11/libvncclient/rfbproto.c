@@ -418,6 +418,9 @@ ConnectToRFBServer(rfbClient* client,const char *hostname, int port)
     return FALSE;
   }
 
+  if(client->QoS_DSCP && !SetDSCP(client->sock, client->QoS_DSCP))
+     return FALSE;
+
   return SetNonBlocking(client->sock);
 }
 
@@ -656,6 +659,7 @@ FreeUserCredential(rfbCredential *cred)
   free(cred);
 }
 
+#ifdef LIBVNCSERVER_WITH_CLIENT_TLS
 static rfbBool
 HandlePlainAuth(rfbClient *client)
 {
@@ -709,6 +713,7 @@ HandlePlainAuth(rfbClient *client)
 
   return TRUE;
 }
+#endif
 
 /* Simple 64bit big integer arithmetic implementation */
 /* (x + y) % m, works even if (x + y) > 64bit */
@@ -833,7 +838,9 @@ InitialiseRFBConnection(rfbClient* client)
   rfbProtocolVersionMsg pv;
   int major,minor;
   uint32_t authScheme;
+#ifdef LIBVNCSERVER_WITH_CLIENT_TLS
   uint32_t subAuthScheme;
+#endif
   rfbClientInitMsg ci;
 
   /* if the connection is immediately closed, don't report anything, so
@@ -1278,7 +1285,7 @@ SendFramebufferUpdateRequest(rfbClient* client, int x, int y, int w, int h, rfbB
 	char *noUpdates = rfbClientGetClientData(client, (void *) 0x555);
 	if( noUpdates )
 	{
-		return;
+		return TRUE;
 	}
 	/*                          */
 

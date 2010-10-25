@@ -1,5 +1,5 @@
 /*
- * DemoServerSlave.h - an IcaSlave providing the demo window
+ * ScreenLockSlaveLauncher.h - a SlaveLauncher for the ScreenLockSlave
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,27 +23,41 @@
  *
  */
 
-#ifndef _DEMO_SERVER_SLAVE_H
-#define _DEMO_SERVER_SLAVE_H
+#ifndef _SCREEN_LOCK_SLAVE_LAUNCHER_H
+#define _SCREEN_LOCK_SLAVE_LAUNCHER_H
 
-#include "IcaSlave.h"
-#include "ItalcCoreServer.h"
+#include <italcconfig.h>
 
-class DemoServerThread;
+#include "Ipc/SlaveLauncher.h"
 
-class DemoServerSlave : public IcaSlave
+#ifdef ITALC_BUILD_WIN32
+#include <windows.h>
+#else
+#include "Ipc/QtSlaveLauncher.h"
+#endif
+
+class ScreenLockSlaveLauncher : public Ipc::SlaveLauncher
 {
 public:
-	DemoServerSlave();
-	virtual ~DemoServerSlave();
+	ScreenLockSlaveLauncher( const QString &applicationFilePath );
+	~ScreenLockSlaveLauncher();
+
+	virtual void start( const QStringList &arguments );
+	virtual void stop();
+	virtual bool isRunning();
 
 
 private:
-	virtual bool handleMessage( const Ipc::Msg &m );
+#ifdef ITALC_BUILD_WIN32
+	HDESK m_newDesktop;
+	HDESK m_origThreadDesktop;
+	HDESK m_origInputDesktop;
+	HANDLE m_lockProcess;
+#else
+	Ipc::QtSlaveLauncher *m_launcher;
+#endif
+};
 
-	DemoServerThread *m_demoServerThread;
-	ItalcCoreServer m_coreServer;
-} ;
 
 #endif
 

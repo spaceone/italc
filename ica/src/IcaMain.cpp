@@ -26,7 +26,6 @@
 
 #include <QtCore/QProcess>
 #include <QtCore/QLocale>
-#include <QtCore/QTime>
 #include <QtCore/QTranslator>
 #include <QtGui/QApplication>
 #include <QtNetwork/QHostInfo>
@@ -38,9 +37,11 @@
 #include "Debug.h"
 #include "DsaKey.h"
 
+#include "AccessDialogSlave.h"
 #include "DemoClientSlave.h"
 #include "DemoServerSlave.h"
 #include "MessageBoxSlave.h"
+#include "InputLockSlave.h"
 #include "ScreenLockSlave.h"
 #include "SystemTrayIconSlave.h"
 
@@ -232,7 +233,7 @@ static int runCoreServer( int argc, char **argv )
 	ItalcVncServer vncServer;
 
 	// start the SystemTrayIconSlave and set the default tooltip
-	coreServer.masterProcess()->setSystemTrayToolTip(
+	coreServer.slaveManager()->setSystemTrayToolTip(
 		QApplication::tr( "iTALC Client %1 on %2:%3" ).
 							arg( ITALC_VERSION ).
 							arg( QHostInfo::localHostName() ).
@@ -278,8 +279,6 @@ int main( int argc, char **argv )
 	mainthreadId = GetCurrentThreadId();
 #endif
 
-	qsrand( QTime( 0, 0, 0 ).secsTo( QTime::currentTime() ) );
-
 	// decide whether to create a QCoreApplication or QApplication
 	if( argc >= 2 )
 	{
@@ -305,27 +304,35 @@ int main( int argc, char **argv )
 				return -1;
 			}
 			const QString arg2 = argv[2];
-			if( arg2 == ItalcCore::Ipc::IdCoreServer )
+			if( arg2 == ItalcSlaveManager::IdCoreServer )
 			{
 				return runCoreServer( argc, argv );
 			}
-			else if( arg2 == ItalcCore::Ipc::IdDemoClient )
+			else if( arg2 == ItalcSlaveManager::IdAccessDialog )
+			{
+				return runSlave<AccessDialogSlave, QApplication>( argc, argv );
+			}
+			else if( arg2 == ItalcSlaveManager::IdDemoClient )
 			{
 				return runSlave<DemoClientSlave, QApplication>( argc, argv );
 			}
-			else if( arg2 == ItalcCore::Ipc::IdMessageBox )
+			else if( arg2 == ItalcSlaveManager::IdMessageBox )
 			{
 				return runSlave<MessageBoxSlave, QApplication>( argc, argv );
 			}
-			else if( arg2 == ItalcCore::Ipc::IdScreenLock )
+			else if( arg2 == ItalcSlaveManager::IdScreenLock )
 			{
 				return runSlave<ScreenLockSlave, QApplication>( argc, argv );
 			}
-			else if( arg2 == ItalcCore::Ipc::IdSystemTrayIcon )
+			else if( arg2 == ItalcSlaveManager::IdInputLock )
+			{
+				return runSlave<InputLockSlave, QApplication>( argc, argv );
+			}
+			else if( arg2 == ItalcSlaveManager::IdSystemTrayIcon )
 			{
 				return runSlave<SystemTrayIconSlave, QApplication>( argc, argv );
 			}
-			else if( arg2 == ItalcCore::Ipc::IdDemoServer )
+			else if( arg2 == ItalcSlaveManager::IdDemoServer )
 			{
 				return runSlave<DemoServerSlave, QCoreApplication>( argc, argv );
 			}

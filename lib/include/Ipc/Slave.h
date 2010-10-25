@@ -26,14 +26,14 @@
 #ifndef _IPC_SLAVE_H
 #define _IPC_SLAVE_H
 
-#include <QtNetwork/QLocalSocket>
+#include <QtNetwork/QTcpSocket>
 
 #include "Ipc/Core.h"
 
 namespace Ipc
 {
 
-class Slave : public QLocalSocket
+class Slave : public QTcpSocket
 {
 	Q_OBJECT
 public:
@@ -45,7 +45,11 @@ public:
 private slots:
 	void receiveMessage();
 
-};
+
+private:
+	const QString m_slaveId;
+
+} ;
 
 }
 

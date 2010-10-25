@@ -32,7 +32,7 @@
 #include <QtCore/QStringList>
 
 #include "ItalcCore.h"
-#include "MasterProcess.h"
+#include "ItalcSlaveManager.h"
 
 
 class ItalcCoreServer : public QObject
@@ -52,9 +52,9 @@ public:
 
 	bool authSecTypeItalc( socketDispatcher sd, void *user );
 
-	MasterProcess * masterProcess()
+	ItalcSlaveManager * slaveManager()
 	{
-		return &m_masterProcess;
+		return &m_slaveManager;
 	}
 
 	void setAllowedIPs( const QStringList &allowedIPs )
@@ -66,14 +66,19 @@ public:
 private:
 	static void errorMsgAuth( const QString & _ip );
 
-	bool doKeyBasedAuth( SocketDevice &sdev );
+	bool doKeyBasedAuth( SocketDevice &sdev, const QString &host );
 	bool doHostBasedAuth( const QString &host );
 
 	static ItalcCoreServer * _this;
 
 	QStringList m_allowedIPs;
 
-	MasterProcess m_masterProcess;
+	// list of hosts that are allowed/denied to access ICA when ICA is running
+	// under a role different from "RoleOther"
+	QStringList m_manuallyAllowedHosts;
+	QStringList m_manuallyDeniedHosts;
+
+	ItalcSlaveManager m_slaveManager;
 
 } ;
 
