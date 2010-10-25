@@ -25,9 +25,10 @@
 
 
 #include "Client.h"
+#include "DemoServerMaster.h"
+#include "ItalcVncConnection.h"
 #include "ItalcCoreConnection.h"
 #include "MasterCore.h"
-#include "DemoServer.h"
 #include "ClassroomManager.h"
 #include "MainWindow.h"
 #include "MasterUI.h"
@@ -53,7 +54,7 @@ Client::Client( const QString & _host,
 	m_rasterPosition( -1, -1 )
 {
 	m_vncConn->setHost( m_host );
-	m_vncConn->setQuality( ItalcVncConnection::QualityLow );
+	m_vncConn->setQuality( ItalcVncConnection::ThumbnailQuality );
 }
 
 
@@ -102,6 +103,7 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
+				MasterCore::demoServerMaster->unallowHost( m_host );
 				m_coreConn->stopDemo();
 				break;
 			case Mode_Locked:
@@ -117,9 +119,10 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
+				MasterCore::demoServerMaster->allowHost( m_host );
 				m_coreConn->startDemo(
-					MasterCore::demoServer->serverPort(),
-						m_mode == Mode_FullscreenDemo );
+								MasterCore::demoServerMaster->serverPort(),
+								m_mode == Mode_FullscreenDemo );
 				break;
 			case Mode_Locked:
 				m_coreConn->lockDisplay();

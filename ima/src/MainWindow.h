@@ -61,6 +61,7 @@ public:
 		return m_workspace;
 	}
 
+
 	void checkModeButton( int _id )
 	{
 		QToolButton * btn = dynamic_cast<QToolButton *>(

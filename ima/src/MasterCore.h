@@ -29,7 +29,7 @@
 class ItalcVncConnection;
 class ItalcCoreConnection;
 class ClassroomManager;
-class DemoServer;
+class DemoServerMaster;
 class GlobalConfig;
 class PersonalConfig;
 class MainWindow;
@@ -50,7 +50,7 @@ namespace MasterCore
 
 	extern ClassroomManager * classroomManager;
 
-	extern DemoServer * demoServer;
+	extern DemoServerMaster * demoServerMaster;
 
 	// UI objects
 	extern MainWindow * mainWindow;

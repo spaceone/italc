@@ -1,5 +1,6 @@
 /*
- * IpcSlave.cpp - class Ipc::Slave providing communication with Ipc::Master
+ * QtSlaveLauncher.cpp - class Ipc::QtSlaveLauncher providing mechanisms for
+ *                       launching a slave application via QProcess
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,57 +24,56 @@
  *
  */
 
-#include <QtCore/QCoreApplication>
+#include <QtCore/QProcess>
 
-#include "Ipc/Slave.h"
+#include "Ipc/QtSlaveLauncher.h"
 
 namespace Ipc
 {
 
-Slave::Slave( const Ipc::Id &masterId, const Ipc::Id &slaveId) :
-	QLocalSocket()
+QtSlaveLauncher::QtSlaveLauncher( const QString &applicationFilePath ) :
+	SlaveLauncher( applicationFilePath ),
+	m_process( NULL )
 {
-	connectToServer( masterId );
-	if( waitForConnected( 5000 ) &&
-		Ipc::Msg().receive( this ).cmd() == Ipc::Commands::Identify )
-	{
-		connect( this, SIGNAL( readyRead() ),
-					this, SLOT( receiveMessage() ) );
-		Ipc::Msg( Ipc::Commands::Identify ).
-				addArg( Ipc::Arguments::Id, slaveId ).
-			send( this );
-	}
 }
 
 
 
-
-void Slave::receiveMessage()
+QtSlaveLauncher::~QtSlaveLauncher()
 {
-	while( bytesAvailable() > 0 )
+	// base class destructor calls stop()
+}
+
+
+
+void QtSlaveLauncher::start( const QStringList &arguments )
+{
+	stop();
+	m_process = new QProcess;
+	m_process->start( applicationFilePath(), arguments );
+}
+
+
+
+void QtSlaveLauncher::stop()
+{
+	if( m_process )
 	{
-		Ipc::Msg m;
-		if( m.receive( this ).isValid() )
+		if( !m_process->waitForFinished( 5000 ) )
 		{
-			bool handled = false;
-			if( handleMessage( m ) )
-			{
-				handled = true;
-			}
-
-			if( m.cmd() == Ipc::Commands::Quit )
-			{
-				handled = true;
-				QCoreApplication::quit();
-			}
-
-			if( !handled )
-			{
-				Ipc::Msg( Ipc::Commands::UnknownCommand ).
-						addArg( Ipc::Arguments::Command, m.cmd() ).send( this );
-			}
+			m_process->terminate();
 		}
+
+		delete m_process;
 	}
 }
+
+
+
+bool QtSlaveLauncher::isRunning() const
+{
+	return m_process && m_process->state() == QProcess::Running;
+}
+
 
 }

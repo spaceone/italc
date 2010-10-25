@@ -1,7 +1,7 @@
 /*
- * IcaMain.cpp - main-file for ICA (iTALC Client Application)
+ * IcaMain.cpp - main file for ICA (iTALC Client Application)
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -31,7 +31,6 @@
 #include <QtGui/QApplication>
 #include <QtNetwork/QHostInfo>
 
-#include "IcaMain.h"
 #include "SystemService.h"
 #include "ItalcCoreServer.h"
 #include "ItalcVncServer.h"
@@ -39,9 +38,8 @@
 #include "Debug.h"
 #include "DsaKey.h"
 
-#include "Ipc/Slave.h"
-
 #include "DemoClientSlave.h"
+#include "DemoServerSlave.h"
 #include "MessageBoxSlave.h"
 #include "ScreenLockSlave.h"
 #include "SystemTrayIconSlave.h"
@@ -50,13 +48,16 @@
 QString __app_name = "iTALC Client";
 const QString SERVICE_ARG = "-service";
 
+int main( int argc, char **argv );
+
 
 int serviceMain( SystemService * _srv )
 {
 	int c = 1;
 	char * * v = new char *[1];
 	v[0] = _srv->argv()[0];
-	return ICAMain( c, v );
+
+	return main( c, v );
 }
 
 
@@ -237,7 +238,6 @@ static int runCoreServer( int argc, char **argv )
 							arg( QHostInfo::localHostName() ).
 							arg( QString::number( vncServer.serverPort() ) ) );
 
-//	vncServer.run();
 	vncServer.start();
 
 	return app.exec();
@@ -245,10 +245,10 @@ static int runCoreServer( int argc, char **argv )
 
 
 
-template<class SlaveClass>
+template<class SlaveClass, class Application>
 static int runSlave( int argc, char **argv )
 {
-	QApplication app( argc, argv );
+	Application app( argc, argv );
 	initCoreApplication( &app );
 
 	SlaveClass s;
@@ -258,8 +258,26 @@ static int runSlave( int argc, char **argv )
 
 
 
-int ICAMain( int argc, char **argv )
+#ifdef ITALC_BUILD_WIN32
+#include <windows.h>
+
+extern HINSTANCE	hAppInstance;
+extern DWORD		mainthreadId;
+#endif
+
+int main( int argc, char **argv )
 {
+#ifdef DEBUG
+	extern int _Xdebug;
+//	_Xdebug = 1;
+#endif
+
+#ifdef ITALC_BUILD_WIN32
+	// initialize global instance handler and main thread ID
+	hAppInstance = GetModuleHandle( NULL );
+	mainthreadId = GetCurrentThreadId();
+#endif
+
 	qsrand( QTime( 0, 0, 0 ).secsTo( QTime::currentTime() ) );
 
 	// decide whether to create a QCoreApplication or QApplication
@@ -287,25 +305,29 @@ int ICAMain( int argc, char **argv )
 				return -1;
 			}
 			const QString arg2 = argv[2];
-			if( arg2 == MasterProcess::IdCoreServer )
+			if( arg2 == ItalcCore::Ipc::IdCoreServer )
 			{
 				return runCoreServer( argc, argv );
 			}
-			else if( arg2 == MasterProcess::IdDemoClient )
+			else if( arg2 == ItalcCore::Ipc::IdDemoClient )
 			{
-				return runSlave<DemoClientSlave>( argc, argv );
+				return runSlave<DemoClientSlave, QApplication>( argc, argv );
 			}
-			else if( arg2 == MasterProcess::IdMessageBox )
+			else if( arg2 == ItalcCore::Ipc::IdMessageBox )
 			{
-				return runSlave<MessageBoxSlave>( argc, argv );
+				return runSlave<MessageBoxSlave, QApplication>( argc, argv );
 			}
-			else if( arg2 == MasterProcess::IdScreenLock )
+			else if( arg2 == ItalcCore::Ipc::IdScreenLock )
 			{
-				return runSlave<ScreenLockSlave>( argc, argv );
+				return runSlave<ScreenLockSlave, QApplication>( argc, argv );
 			}
-			else if( arg2 == MasterProcess::IdSystemTrayIcon )
+			else if( arg2 == ItalcCore::Ipc::IdSystemTrayIcon )
 			{
-				return runSlave<SystemTrayIconSlave>( argc, argv );
+				return runSlave<SystemTrayIconSlave, QApplication>( argc, argv );
+			}
+			else if( arg2 == ItalcCore::Ipc::IdDemoServer )
+			{
+				return runSlave<DemoServerSlave, QCoreApplication>( argc, argv );
 			}
 			else
 			{
@@ -317,66 +339,5 @@ int ICAMain( int argc, char **argv )
 
 	return runCoreServer( argc, argv );
 }
-
-
-
-// platform-specific startup-code follows
-
-#ifdef ITALC_BUILD_WIN32
-
-#include <windows.h>
-
-
-extern HINSTANCE	hAppInstance;
-extern DWORD		mainthreadId;
-
-
-int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
-						PSTR szCmdLine, int iCmdShow )
-{
-	// save the application instance and main thread id
-	hAppInstance = hInstance;
-	mainthreadId = GetCurrentThreadId();
-
-	const int pathlen = 2048;
-	char path[pathlen];
-	if( GetModuleFileName( NULL, path, pathlen ) == 0 )
-	{
-		qCritical( "WinMain(...): "
-				"could not determine module-filename!" );
-		return -1;
-	}
-
-	QStringList cmdline = QString( szCmdLine ).toLower().split( ' ' );
-	cmdline.push_front( path );
-
-	char **argv = new char *[cmdline.size()];
-	int argc = 0;
-	for( QStringList::iterator it = cmdline.begin(); it != cmdline.end();
-								++it, ++argc )
-	{
-		argv[argc] = new char[it->length() + 1];
-		strcpy( argv[argc], it->toUtf8().constData() );
-	}
-
-	return ICAMain( argc, argv );
-}
-
-
-#else
-
-
-int main( int argc, char **argv )
-{
-#ifdef DEBUG
-	extern int _Xdebug;
-//	_Xdebug = 1;
-#endif
-
-	return ICAMain( argc, argv );
-}
-
-
-#endif
 
 

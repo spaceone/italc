@@ -35,6 +35,8 @@
 namespace Ipc
 {
 
+class SlaveLauncher;
+
 class Master : public QLocalServer
 {
 	Q_OBJECT
@@ -42,7 +44,7 @@ public:
 	Master();
 	virtual ~Master();
 
-	void createSlave( const Ipc::Id &id );
+	void createSlave( const Ipc::Id &id, SlaveLauncher *slaveLauncher = NULL );
 	void stopSlave( const Ipc::Id &id );
 	bool isSlaveRunning( const Ipc::Id &id );
 
@@ -62,8 +64,8 @@ private:
 
 	struct ProcessInformation
 	{
-		QLocalSocket * sock;
-		QProcess * process;
+		QLocalSocket *sock;
+		SlaveLauncher *slaveLauncher;
 		QVector<Ipc::Msg> pendingMessages;
 	};
 

@@ -1,7 +1,8 @@
 /*
- * IcaMain.h - declaration of ICAMain and other global stuff
+ * DemoServerSlave.h - an IcaSlave providing the demo window
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Univention GmbH
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,13 +23,33 @@
  *
  */
 
+#ifndef _DEMO_SERVER_SLAVE_H
+#define _DEMO_SERVER_SLAVE_H
 
-#ifndef _ICA_MAIN_H
-#define _ICA_MAIN_H
+#include "IcaSlave.h"
 
-int ICAMain( int _argc, char * * _argv );
+class DemoServerThread;
 
-extern int __ivs_port;
+class DemoServerSlave : public IcaSlave
+{
+public:
+	static const Ipc::Command StartDemoServer;
+	static const Ipc::Argument UserRole;
+	static const Ipc::Argument SourcePort;
+	static const Ipc::Argument DestinationPort;
+
+	static const Ipc::Command UpdateAllowedHosts;
+	static const Ipc::Argument AllowedHosts;
+
+	DemoServerSlave();
+	virtual ~DemoServerSlave();
+
+
+private:
+	virtual bool handleMessage( const Ipc::Msg &m );
+
+	DemoServerThread *m_demoServerThread;
+} ;
 
 #endif
 

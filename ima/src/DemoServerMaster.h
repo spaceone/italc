@@ -1,5 +1,5 @@
 /*
- * DemoClientSlave.cpp - an IcaSlave providing the demo window
+ * DemoServerMaster.h - DemoServerMaster which manages (GUI) slave apps
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,38 +23,45 @@
  *
  */
 
-#include "DemoClientSlave.h"
-#include "DemoClient.h"
+#ifndef _DEMO_SERVER_MASTER_H
+#define _DEMO_SERVER_MASTER_H
 
-const Ipc::Command DemoClientSlave::StartDemo = "StartDemo";
-const Ipc::Argument DemoClientSlave::MasterHost = "MasterHost";
-const Ipc::Argument DemoClientSlave::FullScreen = "FullScreen";
+#include "Ipc/Master.h"
 
-
-DemoClientSlave::DemoClientSlave() :
-	IcaSlave(),
-	m_demoClient( NULL )
+class DemoServerMaster : protected Ipc::Master
 {
-}
+public:
+	DemoServerMaster();
+	virtual ~DemoServerMaster();
 
+	void start( int sourcePort, int destinationPort );
+	void stop();
+	void updateAllowedHosts();
 
-
-DemoClientSlave::~DemoClientSlave()
-{
-	delete m_demoClient;
-}
-
-
-
-bool DemoClientSlave::handleMessage( const Ipc::Msg &m )
-{
-	if( m.cmd() == StartDemo )
+	void allowHost( const QString &host )
 	{
-		m_demoClient = new DemoClient( m.arg( MasterHost ),
-										m.argV( FullScreen ).toInt() );
-		return true;
+		m_allowedHosts += host;
+		updateAllowedHosts();
 	}
 
-	return false;
-}
+	void unallowHost( const QString &host )
+	{
+		m_allowedHosts.removeAll( host );
+		updateAllowedHosts();
+	}
 
+	int serverPort() const
+	{
+		return m_serverPort;
+	}
+
+
+private:
+	virtual bool handleMessage( const Ipc::Msg &m );
+
+	QStringList m_allowedHosts;
+	int m_serverPort;
+
+} ;
+
+#endif

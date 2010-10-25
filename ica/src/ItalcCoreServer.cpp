@@ -26,96 +26,26 @@
 #include <italcconfig.h>
 
 #ifdef ITALC_BUILD_WIN32
-
 #define _WIN32_WINNT 0x0501
 #include <windows.h>
 #include <psapi.h>
 #endif
 
-
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
-//#include <QtCore/QTemporaryFile>
 #include <QtNetwork/QHostInfo>
-#include <QtNetwork/QTcpSocket>
 
 #include "ItalcCoreServer.h"
 #include "DsaKey.h"
 #include "LocalSystemIca.h"
-#include "IcaMain.h"
 
 
 ItalcCoreServer * ItalcCoreServer::_this = NULL;
 
 
-
-qint64 qtcpsocketDispatcher( char * _buf, const qint64 _len,
-				const SocketOpCodes _op_code, void * _user )
-{
-	QTcpSocket * sock = static_cast<QTcpSocket *>( _user );
-	qint64 ret = 0;
-	switch( _op_code )
-	{
-		case SocketRead:
-			while( ret < _len )
-			{
-				qint64 bytes_read = sock->read( _buf, _len );
-				if( bytes_read < 0 )
-				{
-	qDebug( "qtcpsocketDispatcher(...): connection closed while reading" );
-					return 0;
-				}
-				else if( bytes_read == 0 )
-				{
-					if( sock->state() !=
-						QTcpSocket::ConnectedState )
-					{
-	qDebug( "qtcpsocketDispatcher(...): connection failed while writing  "
-			"state:%d  error:%d", sock->state(), sock->error() );
-						return 0;
-					}
-					sock->waitForReadyRead( 10 );
-				}
-				ret += bytes_read;
-			}
-			break;
-		case SocketWrite:
-			while( ret < _len )
-			{
-				qint64 written = sock->write( _buf, _len );
-				if( written < 0 )
-				{
-	qDebug( "qtcpsocketDispatcher(...): connection closed while writing" );
-					return 0;
-				}
-				else if( written == 0 )
-				{
-					if( sock->state() !=
-						QTcpSocket::ConnectedState )
-					{
-	qDebug( "qtcpsocketDispatcher(...): connection failed while writing  "
-			"state:%d error:%d", sock->state(), sock->error() );
-						return 0;
-					}
-				}
-				ret += written;
-			}
-			//sock->flush();
-			sock->waitForBytesWritten();
-			break;
-		case SocketGetPeerAddress:
-			strncpy( _buf,
-		sock->peerAddress().toString().toAscii().constData(), _len );
-			break;
-	}
-	return ret;
-}
-
-
-
-
 ItalcCoreServer::ItalcCoreServer() :
 	QObject(),
+	m_allowedIPs(),
 	m_masterProcess()
 {
 	Q_ASSERT( _this == NULL );
@@ -316,38 +246,35 @@ int ItalcCoreServer::handleItalcClientMessage( socketDispatcher sock,
 
 
 
-
-bool ItalcCoreServer::authSecTypeItalc( socketDispatcher _sd, void * _user,
-					ItalcAuthTypes _auth_type,
-					const QStringList & _allowedHosts )
+bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 {
 	// find out IP of host - needed at several places
 	const int MAX_HOST_LEN = 255;
 	char host[MAX_HOST_LEN+1];
-	_sd( host, MAX_HOST_LEN, SocketGetPeerAddress, _user );
+	sd( host, MAX_HOST_LEN, SocketGetPeerAddress, user );
 	host[MAX_HOST_LEN] = 0;
 	static QStringList __denied_hosts, __allowed_hosts;
 
-	SocketDevice sdev( _sd, _user );
-	sdev.write( QVariant( (int) _auth_type ) );
+	SocketDevice sdev( sd, user );
+
+	// send list of supported authentication types - can't use QList<QVariant>
+	// here due to a strange bug in Qt
+	QMap<QString, QVariant> supportedAuthTypes;
+	supportedAuthTypes["ItalcAuthDSA"] = ItalcAuthDSA;
+	supportedAuthTypes["ItalcAuthHostBased"] = ItalcAuthHostBased;
+	sdev.write( supportedAuthTypes );
 
 	uint32_t result = rfbVncAuthFailed;
-
-	ItalcAuthTypes chosen = static_cast<ItalcAuthTypes>(
-							sdev.read().toInt() );
-	if( chosen == ItalcAuthDSA && _auth_type == ItalcAuthLocalDSA )
-	{
-		// this case is ok as well
-	}
-	else if( chosen != _auth_type )
+	ItalcAuthTypes chosen = static_cast<ItalcAuthTypes>( sdev.read().toInt() );
+	if( !supportedAuthTypes.values().contains( chosen ) )
 	{
 		errorMsgAuth( host );
 		qCritical( "ItalcCoreServer::authSecTypeItalc(...): "
-				"client chose other auth-type than offered!" );
-		return( result );
+				"client chose unsupported authentication type!" );
+		return result;
 	}
 
-	switch( _auth_type )
+	switch( chosen )
 	{
 		// no authentication
 		case ItalcAuthNone:
@@ -356,108 +283,22 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher _sd, void * _user,
 
 		// host has to be in list of allowed hosts
 		case ItalcAuthHostBased:
-		{
-			if( _allowedHosts.isEmpty() )
+			if( doHostBasedAuth( host ) )
 			{
-				break;
-			}
-			QStringList allowed;
-			foreach( const QString a, _allowedHosts )
-			{
-				const QString h = a.split( ':' )[0];
-				if( !allowed.contains( h ) )
-				{
-					allowed.push_back( h );
-				}
-			}
-			// already valid IP?
-			if( QHostAddress().setAddress( host ) )
-			{
-				if( allowed.contains( host ) )
-				{
-					result = rfbVncAuthOK;
-				}
-			}
-			else
-			{
-			// create a list of all known addresses of host
-			QList<QHostAddress> addr =
-					QHostInfo::fromName( host ).addresses();
-			if( !addr.isEmpty() )
-			{
-				// check each address for existence in allowed-
-				// client-list
-				foreach( const QHostAddress a, addr )
-				{
-	if( allowed.contains( a.toString() ) ||
-		a.toString() == QHostAddress( QHostAddress::LocalHost ).toString() )
-					{
-						result = rfbVncAuthOK;
-						break;
-					}
-				}
-			}
+				result = rfbVncAuthOK;
 			}
 			break;
-		}
 
 		// authentication via DSA-challenge/-response
-		case ItalcAuthLocalDSA:
 		case ItalcAuthDSA:
-		{
-			// generate data to sign and send to client
-			const QByteArray chall = DsaKey::generateChallenge();
-			sdev.write( QVariant( chall ) );
-
-			// get user-role
-			const ItalcCore::UserRoles urole =
-				static_cast<ItalcCore::UserRoles>(
-							sdev.read().toInt() );
-			if( ItalcCore::role != ItalcCore::RoleOther &&
-					_auth_type != ItalcAuthLocalDSA )
+			if( doKeyBasedAuth( sdev ) )
 			{
-			/*	if( __denied_hosts.contains( host ) )
-				{
-					result = ItalcAuthFailed;
-					break;
-				}
-				if( !__allowed_hosts.contains( host ) )
-				{
-					bool failed = true;
-					switch( doGuiOp( ItalcCore::AccessDialog, host ) )
-					{
-						case AccessAlways:
-							__allowed_hosts += host;
-						case AccessYes:
-							failed = false;
-							break;
-						case AccessNever:
-							__denied_hosts += host;
-						case AccessNo:
-							break;
-					}
-					if( failed )
-					{
-						result = ItalcAuthFailed;
-						break;
-					}
-				}
-				else*/
-				{
-					result = rfbVncAuthFailed;
-				}
+				result = rfbVncAuthOK;
 			}
-
-			// now try to verify received signed data using public
-			// key of the user under which the client claims to run
-			const QByteArray sig = sdev.read().toByteArray();
-			// (publicKeyPath does range-checking of urole)
-			PublicDSAKey pub_key( LocalSystem::publicKeyPath(
-								urole ) );
-			result = pub_key.verifySignature( chall, sig ) ?
-						rfbVncAuthOK : rfbVncAuthFailed;
 			break;
-		}
+
+		default:
+			break;
 	}
 
 	if( result != rfbVncAuthOK )
@@ -529,4 +370,97 @@ void ItalcCoreServer::errorMsgAuth( const QString &ip )
 }
 
 
+
+
+bool ItalcCoreServer::doKeyBasedAuth( SocketDevice &sdev )
+{
+	// generate data to sign and send to client
+	const QByteArray chall = DsaKey::generateChallenge();
+	sdev.write( QVariant( chall ) );
+
+	// get user-role
+	const ItalcCore::UserRoles urole =
+				static_cast<ItalcCore::UserRoles>( sdev.read().toInt() );
+	if( ItalcCore::role != ItalcCore::RoleOther )
+	{
+		/*	if( __denied_hosts.contains( host ) )
+			{
+				result = ItalcAuthFailed;
+				break;
+			}
+			if( !__allowed_hosts.contains( host ) )
+			{
+				bool failed = true;
+				switch( doGuiOp( ItalcCore::AccessDialog, host ) )
+				{
+					case AccessAlways:
+						__allowed_hosts += host;
+					case AccessYes:
+						failed = false;
+						break;
+					case AccessNever:
+						__denied_hosts += host;
+					case AccessNo:
+						break;
+				}
+				if( failed )
+				{
+					result = ItalcAuthFailed;
+					break;
+				}
+			}
+			else*/
+			{
+				return false;
+			}
+	}
+
+	// now try to verify received signed data using public key of the user
+	// under which the client claims to run
+	const QByteArray sig = sdev.read().toByteArray();
+
+	// (publicKeyPath does range-checking of urole)
+	PublicDSAKey pubKey( LocalSystem::publicKeyPath( urole ) );
+
+	return pubKey.verifySignature( chall, sig );
+}
+
+
+
+
+bool ItalcCoreServer::doHostBasedAuth( const QString &host )
+{
+	if( m_allowedIPs.isEmpty() )
+	{
+		return false;
+	}
+
+	// already valid IP?
+	if( QHostAddress().setAddress( host ) )
+	{
+		if( m_allowedIPs.contains( host ) )
+		{
+			return true;
+		}
+	}
+	else
+	{
+		// create a list of all known addresses of host
+		QList<QHostAddress> addr = QHostInfo::fromName( host ).addresses();
+
+		// check each address for existence in list of allowed clients
+		foreach( const QHostAddress a, addr )
+		{
+			if( m_allowedIPs.contains( a.toString() ) ||
+					a.toString() == QHostAddress( QHostAddress::LocalHost ).
+																	toString() )
+			{
+				return true;
+			}
+		}
+	}
+
+	// host-based authentication failed
+	return false;
+}
 

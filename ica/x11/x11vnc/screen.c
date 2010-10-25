@@ -1472,7 +1472,13 @@ char *vnc_reflect_guess(char *str, char **raw_fb_addr) {
 		at++;
 	}
 
+	/* Tobias Doerffel, 2010/10 */
+#define USE_AS_ITALC_DEMO_SERVER
+#ifdef USE_AS_ITALC_DEMO_SERVER
+	client->appData.encodingsString = "raw";
+#else
 	client->appData.useRemoteCursor = TRUE;
+#endif
 	client->canHandleNewFBSize = TRUE;
 
 	client->HandleCursorPos = vnc_reflect_cursor_pos;
@@ -2150,6 +2156,7 @@ if (db) fprintf(stderr, "initialize_raw_fb reset\n");
 
 		last_file = strdup(q);
 
+#ifndef WIN32
 		fd = raw_fb_fd;
 		if (fd < 0 && rawfb_dev_video) {
 			fd = open(q, O_RDWR);
@@ -2165,6 +2172,7 @@ if (db) fprintf(stderr, "initialize_raw_fb reset\n");
 			clean_up_exit(1);
 		}
 		raw_fb_fd = fd;
+#endif
 
 		if (raw_fb_native_bpp < 8) {
 			size = w*h*raw_fb_native_bpp/8 + raw_fb_offset;

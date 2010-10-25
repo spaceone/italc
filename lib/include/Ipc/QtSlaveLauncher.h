@@ -1,5 +1,6 @@
 /*
- * DemoClientSlave.cpp - an IcaSlave providing the demo window
+ * QtSlaveLauncher.h - class Ipc::QtSlaveLauncher providing mechanisms for
+ *                     launching a slave application
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,38 +24,32 @@
  *
  */
 
-#include "DemoClientSlave.h"
-#include "DemoClient.h"
+#ifndef _IPC_QT_SLAVE_LAUNCHER_H
+#define _IPC_QT_SLAVE_LAUNCHER_H
 
-const Ipc::Command DemoClientSlave::StartDemo = "StartDemo";
-const Ipc::Argument DemoClientSlave::MasterHost = "MasterHost";
-const Ipc::Argument DemoClientSlave::FullScreen = "FullScreen";
+#include "Ipc/SlaveLauncher.h"
 
+class QProcess;
 
-DemoClientSlave::DemoClientSlave() :
-	IcaSlave(),
-	m_demoClient( NULL )
+namespace Ipc
 {
+
+class QtSlaveLauncher : public SlaveLauncher
+{
+public:
+	QtSlaveLauncher( const QString &applicationFilePath = QString() );
+	~QtSlaveLauncher();
+
+	virtual void start( const QStringList &arguments );
+	virtual void stop();
+	virtual bool isRunning() const;
+
+
+private:
+	QProcess *m_process;
+
+};
+
 }
 
-
-
-DemoClientSlave::~DemoClientSlave()
-{
-	delete m_demoClient;
-}
-
-
-
-bool DemoClientSlave::handleMessage( const Ipc::Msg &m )
-{
-	if( m.cmd() == StartDemo )
-	{
-		m_demoClient = new DemoClient( m.arg( MasterHost ),
-										m.argV( FullScreen ).toInt() );
-		return true;
-	}
-
-	return false;
-}
-
+#endif // _IPC_QT_SLAVE_LAUNCHER_H

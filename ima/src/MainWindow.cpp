@@ -52,6 +52,7 @@
 #include "PersonalConfig.h"
 #include "SnapshotList.h"
 #include "ConfigWidget.h"
+#include "DecoratedMessageBox.h"
 #include "ToolButton.h"
 #include "LocalSystem.h"
 #include "RemoteControlWidget.h"

@@ -1,5 +1,6 @@
 /*
- * IpcSlave.cpp - class Ipc::Slave providing communication with Ipc::Master
+ * IpcSlaveLauncher.cpp - class Ipc::SlaveLauncher providing mechanisms for
+ *                        launching a slave application
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -25,55 +26,38 @@
 
 #include <QtCore/QCoreApplication>
 
-#include "Ipc/Slave.h"
+#include "Ipc/SlaveLauncher.h"
 
 namespace Ipc
 {
 
-Slave::Slave( const Ipc::Id &masterId, const Ipc::Id &slaveId) :
-	QLocalSocket()
+SlaveLauncher::SlaveLauncher( const QString &applicationFilePath ) :
+	m_applicationFilePath( applicationFilePath )
 {
-	connectToServer( masterId );
-	if( waitForConnected( 5000 ) &&
-		Ipc::Msg().receive( this ).cmd() == Ipc::Commands::Identify )
+	if( m_applicationFilePath.isEmpty() )
 	{
-		connect( this, SIGNAL( readyRead() ),
-					this, SLOT( receiveMessage() ) );
-		Ipc::Msg( Ipc::Commands::Identify ).
-				addArg( Ipc::Arguments::Id, slaveId ).
-			send( this );
+		m_applicationFilePath = QCoreApplication::applicationFilePath();
 	}
 }
 
 
 
-
-void Slave::receiveMessage()
+SlaveLauncher::~SlaveLauncher()
 {
-	while( bytesAvailable() > 0 )
-	{
-		Ipc::Msg m;
-		if( m.receive( this ).isValid() )
-		{
-			bool handled = false;
-			if( handleMessage( m ) )
-			{
-				handled = true;
-			}
-
-			if( m.cmd() == Ipc::Commands::Quit )
-			{
-				handled = true;
-				QCoreApplication::quit();
-			}
-
-			if( !handled )
-			{
-				Ipc::Msg( Ipc::Commands::UnknownCommand ).
-						addArg( Ipc::Arguments::Command, m.cmd() ).send( this );
-			}
-		}
-	}
+	stop();
 }
+
+
+
+void SlaveLauncher::start( const QStringList & )
+{
+}
+
+
+
+void SlaveLauncher::stop()
+{
+}
+
 
 }

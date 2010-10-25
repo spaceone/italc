@@ -27,6 +27,7 @@
 #include <QtNetwork/QLocalSocket>
 
 #include "Ipc/Master.h"
+#include "Ipc/QtSlaveLauncher.h"
 
 namespace Ipc
 {
@@ -59,16 +60,21 @@ Master::~Master()
 
 
 
-void Master::createSlave( const Ipc::Id &id )
+void Master::createSlave( const Ipc::Id &id, SlaveLauncher *slaveLauncher )
 {
 	// make sure to stop a slave with the same id
 	stopSlave( id );
 
+	if( slaveLauncher == NULL )
+	{
+		slaveLauncher = new QtSlaveLauncher;
+	}
+
 	ProcessInformation pi;
-	pi.process = new QProcess;
 	pi.sock = NULL;
-	pi.process->start( QCoreApplication::applicationFilePath(),
-						QStringList() << "-slave" << id << m_serverId );
+
+	pi.slaveLauncher = slaveLauncher;
+	pi.slaveLauncher->start( QStringList() << "-slave" << id << m_serverId );
 
 	m_processes[id] = pi;
 }
@@ -78,20 +84,21 @@ void Master::createSlave( const Ipc::Id &id )
 
 void Master::stopSlave( const Ipc::Id &id )
 {
-	if( isSlaveRunning( id ) )
+	if( m_processes.contains( id ) )
 	{
 		if( isSlaveRunning( id ) )
 		{
 			sendMessage( id, Ipc::Commands::Quit );
 
-			if( !m_processes[id].process->waitForFinished( 5000 ) )
-			{
-				m_processes[id].process->terminate();
-			}
+			m_processes[id].slaveLauncher->stop();
 		}
 
-		delete m_processes[id].process;
-		delete m_processes[id].sock;
+		delete m_processes[id].slaveLauncher;
+
+		// schedule deletion of socket - can't delete it here as this crashes
+		// Qt on Win32
+		m_processes[id].sock->deleteLater();
+
 		m_processes.remove( id );
 	}
 }
@@ -103,7 +110,7 @@ bool Master::isSlaveRunning( const Ipc::Id &id )
 {
 	if( m_processes.contains( id ) )
 	{
-		return m_processes[id].process->state() == QProcess::Running;
+		return m_processes[id].slaveLauncher->isRunning();
 	}
 
 	return false;
@@ -154,8 +161,8 @@ void Master::acceptConnection()
 	if( answer.receive( s ).isValid() &&
 			answer.cmd() == Ipc::Commands::Identify )
 	{
-		const Ipc::Id id = answer.arg( "id" );
-		if( m_processes.contains( id ) )
+		const Ipc::Id id = answer.arg( Ipc::Arguments::Id );
+		if( m_processes.contains( id ) && m_processes[id].sock == NULL )
 		{
 			m_processes[id].sock = s;
 
@@ -169,6 +176,10 @@ void Master::acceptConnection()
 			{
 				m.send( s );
 			}
+		}
+		else
+		{
+			delete s;
 		}
 	}
 }
@@ -190,8 +201,9 @@ void Master::receiveMessages()
 			{
 				if( m.cmd() == Ipc::Commands::UnknownCommand )
 				{
-					qWarning() << "Slave" << it.key() <<
-						"could not handle command" << m.arg( "Command" );
+					qWarning() << "Slave" << it.key()
+						<< "could not handle command"
+						<< m.arg( Ipc::Arguments::Command );
 				}
 				else
 				{

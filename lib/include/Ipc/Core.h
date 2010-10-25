@@ -44,6 +44,12 @@ namespace Ipc
 		extern const Command Quit;
 	}
 
+	namespace Arguments
+	{
+		extern const Argument Id;
+		extern const Argument Command;
+	}
+
 	class Msg
 	{
 	public:
@@ -73,21 +79,26 @@ namespace Ipc
 			return m_args;
 		}
 
-		Msg & addArg( const QString &key, const QString &value )
+		Msg & addArg( const QString &key, const QVariant &value )
 		{
-			m_args[key.toLower()] = value;
+			m_args[key] = value;
 			return *this;
 		}
 
 		Msg & addArg( const QString &key, const int value )
 		{
-			m_args[key.toLower()] = QString::number( value );
+			m_args[key] = QString::number( value );
 			return *this;
 		}
 
 		QString arg( const QString &key ) const
 		{
-			return m_args[key.toLower()].toString();
+			return m_args[key].toString();
+		}
+
+		QVariant argV( const QString &key ) const
+		{
+			return m_args[key];
 		}
 
 		template<class QIOD>
@@ -103,7 +114,10 @@ namespace Ipc
 		template<class QIOD>
 		Msg & receive( QIOD *d )
 		{
-			d->waitForReadyRead( 1 );
+			if( !d->waitForReadyRead( 1000 ) )
+			{
+				qDebug( "Ipc::Msg::receive(): waitForReadyRead() timed out" );
+			}
 			QDataStream ds( d );
 			ds >> m_cmd;
 			ds >> m_args;

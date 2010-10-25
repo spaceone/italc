@@ -1,5 +1,5 @@
 /*
- * DemoClientSlave.cpp - an IcaSlave providing the demo window
+ * ScreenLockSlaveLauncher.h - a SlaveLauncher for the ScreenLockSlave
  *
  * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  * Copyright (c) 2010 Univention GmbH
@@ -23,38 +23,41 @@
  *
  */
 
-#include "DemoClientSlave.h"
-#include "DemoClient.h"
+#ifndef _SCREEN_LOCK_SLAVE_LAUNCHER_H
+#define _SCREEN_LOCK_SLAVE_LAUNCHER_H
 
-const Ipc::Command DemoClientSlave::StartDemo = "StartDemo";
-const Ipc::Argument DemoClientSlave::MasterHost = "MasterHost";
-const Ipc::Argument DemoClientSlave::FullScreen = "FullScreen";
+#include <italcconfig.h>
 
+#include "Ipc/SlaveLauncher.h"
 
-DemoClientSlave::DemoClientSlave() :
-	IcaSlave(),
-	m_demoClient( NULL )
+#ifdef ITALC_BUILD_WIN32
+#include <windows.h>
+#else
+#include "Ipc/QtSlaveLauncher.h"
+#endif
+
+class ScreenLockSlaveLauncher : public Ipc::SlaveLauncher
 {
-}
+public:
+	ScreenLockSlaveLauncher();
+	~ScreenLockSlaveLauncher();
+
+	virtual void start( const QStringList &arguments );
+	virtual void stop();
+	virtual bool isRunning() const;
 
 
+private:
+#ifdef ITALC_BUILD_WIN32
+	HDESK m_newDesktop;
+	HDESK m_origThreadDesktop;
+	HDESK m_origInputDesktop;
+	HANDLE m_lockProcess;
+#else
+	Ipc::QtSlaveLauncher *m_launcher;
+#endif
+};
 
-DemoClientSlave::~DemoClientSlave()
-{
-	delete m_demoClient;
-}
 
-
-
-bool DemoClientSlave::handleMessage( const Ipc::Msg &m )
-{
-	if( m.cmd() == StartDemo )
-	{
-		m_demoClient = new DemoClient( m.arg( MasterHost ),
-										m.argV( FullScreen ).toInt() );
-		return true;
-	}
-
-	return false;
-}
+#endif
 

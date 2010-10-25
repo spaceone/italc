@@ -24,17 +24,13 @@
  */
 
 #include "MasterProcess.h"
+#include "ItalcCore.h"
 
 #include "DemoClientSlave.h"
 #include "MessageBoxSlave.h"
 #include "ScreenLockSlave.h"
+#include "ScreenLockSlaveLauncher.h"
 #include "SystemTrayIconSlave.h"
-
-const Ipc::Id MasterProcess::IdCoreServer = "CoreServer";
-const Ipc::Id MasterProcess::IdDemoClient = "DemoClient";
-const Ipc::Id MasterProcess::IdMessageBox = "MessageBox";
-const Ipc::Id MasterProcess::IdScreenLock = "ScreenLock";
-const Ipc::Id MasterProcess::IdSystemTrayIcon = "SystemTrayIcon";
 
 
 MasterProcess::MasterProcess() :
@@ -52,10 +48,10 @@ MasterProcess::~MasterProcess()
 
 
 
-void MasterProcess::startDemo( const QString &masterHost, bool fullscreen)
+void MasterProcess::startDemo( const QString &masterHost, bool fullscreen )
 {
-	createSlave( IdDemoClient );
-	sendMessage( IdDemoClient,
+	createSlave( ItalcCore::Ipc::IdDemoClient );
+	sendMessage( ItalcCore::Ipc::IdDemoClient,
 					Ipc::Msg( DemoClientSlave::StartDemo ).
 						addArg( DemoClientSlave::MasterHost, masterHost ).
 						addArg( DemoClientSlave::FullScreen, fullscreen ) );
@@ -66,7 +62,7 @@ void MasterProcess::startDemo( const QString &masterHost, bool fullscreen)
 
 void MasterProcess::stopDemo()
 {
-	stopSlave( IdDemoClient );
+	stopSlave( ItalcCore::Ipc::IdDemoClient );
 }
 
 
@@ -74,7 +70,7 @@ void MasterProcess::stopDemo()
 
 void MasterProcess::lockDisplay()
 {
-	createSlave( IdScreenLock );
+	createSlave( ItalcCore::Ipc::IdScreenLock, new ScreenLockSlaveLauncher );
 }
 
 
@@ -82,7 +78,7 @@ void MasterProcess::lockDisplay()
 
 void MasterProcess::unlockDisplay()
 {
-	stopSlave( IdScreenLock );
+	stopSlave( ItalcCore::Ipc::IdScreenLock );
 }
 
 
@@ -90,11 +86,11 @@ void MasterProcess::unlockDisplay()
 
 void MasterProcess::messageBox( const QString &msg )
 {
-	if( !isSlaveRunning( IdMessageBox ) )
+	if( !isSlaveRunning( ItalcCore::Ipc::IdMessageBox ) )
 	{
-		createSlave( IdMessageBox );
+		createSlave( ItalcCore::Ipc::IdMessageBox );
 	}
-	sendMessage( IdMessageBox,
+	sendMessage( ItalcCore::Ipc::IdMessageBox,
 					Ipc::Msg( MessageBoxSlave::ShowMessageBox ).
 						addArg( MessageBoxSlave::Text, msg ) );
 }
@@ -105,11 +101,11 @@ void MasterProcess::messageBox( const QString &msg )
 void MasterProcess::systemTrayMessage( const QString &title,
 										const QString &msg )
 {
-	if( !isSlaveRunning( IdSystemTrayIcon ) )
+	if( !isSlaveRunning( ItalcCore::Ipc::IdSystemTrayIcon ) )
 	{
-		createSlave( IdSystemTrayIcon );
+		createSlave( ItalcCore::Ipc::IdSystemTrayIcon );
 	}
-	sendMessage( IdSystemTrayIcon,
+	sendMessage( ItalcCore::Ipc::IdSystemTrayIcon,
 					Ipc::Msg( SystemTrayIconSlave::ShowMessage ).
 						addArg( SystemTrayIconSlave::Title, title ).
 						addArg( SystemTrayIconSlave::Text, msg ) );
@@ -120,11 +116,11 @@ void MasterProcess::systemTrayMessage( const QString &title,
 
 void MasterProcess::setSystemTrayToolTip( const QString &tooltip )
 {
-	if( !isSlaveRunning( IdSystemTrayIcon ) )
+	if( !isSlaveRunning( ItalcCore::Ipc::IdSystemTrayIcon ) )
 	{
-		createSlave( IdSystemTrayIcon );
+		createSlave( ItalcCore::Ipc::IdSystemTrayIcon );
 	}
-	sendMessage( IdSystemTrayIcon,
+	sendMessage( ItalcCore::Ipc::IdSystemTrayIcon,
 					Ipc::Msg( SystemTrayIconSlave::SetToolTip ).
 						addArg( SystemTrayIconSlave::ToolTipText, tooltip ) );
 }
