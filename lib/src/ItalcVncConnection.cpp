@@ -26,6 +26,7 @@
  */
 
 #include "ItalcVncConnection.h"
+#include "Logger.h"
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QMutexLocker>
@@ -108,13 +109,14 @@ rfbBool ItalcVncConnection::hookNewClient( rfbClient *cl )
 
 	const int size = (int) cl->width * cl->height *
 					( cl->format.bitsPerPixel / 8 );
-	if( t->frameBuffer )
+	if( t->m_frameBuffer )
 	{
 		// do not leak if we get a new framebuffer size
-		delete [] t->frameBuffer;
+		delete [] t->m_frameBuffer;
 	}
-	t->frameBuffer = new uint8_t[size];
-	cl->frameBuffer = t->frameBuffer;
+	t->m_frameBuffer = new uint8_t[size];
+	t->m_framebufferInitialized = false;
+	cl->frameBuffer = t->m_frameBuffer;
 	memset( cl->frameBuffer, '\0', size );
 	cl->format.bitsPerPixel = 32;
 	cl->format.redShift = 16;
@@ -178,6 +180,7 @@ void ItalcVncConnection::hookUpdateFB( rfbClient *cl, int x, int y, int w, int h
 					rfbClientGetClientData( cl, 0 );
 	t->setImage( img );
 	t->m_scaledScreenNeedsUpdate = true;
+	t->m_framebufferInitialized = true;
 	t->emitUpdated( x, y, w, h );
 }
 
@@ -232,7 +235,7 @@ void ItalcVncConnection::hookOutputHandler( const char *format, ... )
 	va_end(args);
 
 	message = message.trimmed();
-	fprintf( stderr, "%s\n", message.toAscii().constData() );
+	ilog( Warning, "ItalcVncConnection: " + message );
 
 	if( ( message.contains( "Couldn't convert " ) ) ||
 		( message.contains( "Unable to connect to VNC server" ) ) )
@@ -265,7 +268,8 @@ void ItalcVncConnection::hookOutputHandler( const char *format, ... )
 
 ItalcVncConnection::ItalcVncConnection( QObject *parent ) :
 	QThread( parent ),
-	frameBuffer( NULL ),
+	m_frameBuffer( NULL ),
+	m_framebufferInitialized( false ),
 	m_cl( NULL ),
 	m_italcAuthType( ItalcAuthDSA ),
 	m_quality( DemoQuality ),
@@ -286,7 +290,7 @@ ItalcVncConnection::~ItalcVncConnection()
 {
 	stop();
 
-	delete [] frameBuffer;
+	delete [] m_frameBuffer;
 }
 
 
@@ -384,8 +388,14 @@ bool ItalcVncConnection::waitForConnected( int timeout ) const
 void ItalcVncConnection::setImage( const QImage & img )
 {
 	m_imgLock.lockForWrite();
+	const QSize oldSize = m_image.size();
 	m_image = img;
 	m_imgLock.unlock();
+
+	if( img.size() != oldSize )
+	{
+		emit framebufferSizeChanged( img.width(), img.height() );
+	}
 }
 
 

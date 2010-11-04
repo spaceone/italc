@@ -11,6 +11,7 @@ IF(COMMAND CMAKE_POLICY)
 ENDIF(COMMAND CMAKE_POLICY)
 
 INCLUDE(AddFileDependencies)
+INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckFunctionExists)
 INCLUDE(FindPkgConfig)
@@ -30,6 +31,17 @@ ADD_DEFINITIONS(-DITALC3)
 
 INCLUDE(DetectMachine)
 
+# check for pthreads and TLS support
+IF(WIN32)
+	SET(ITALC_HAVE_LIBPTHREAD true)
+ELSE(WIN32)
+    FIND_PACKAGE(Threads)
+	IF(CMAKE_USE_PTHREADS_INIT)
+		SET(ITALC_HAVE_LIBPTHREAD true)
+	ENDIF(CMAKE_USE_PTHREADS_INIT)
+ENDIF(WIN32)
+
+CHECK_C_SOURCE_COMPILES("static __thread int p = 0; int main() {}" ITALC_HAVE_TLS)
 
 CHECK_INCLUDE_FILES(arpa/inet.h ITALC_HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES(fcntl.h ITALC_HAVE_FCNTL_H)
@@ -144,9 +156,9 @@ SET(ITALCCONFIG ${CMAKE_BINARY_DIR}/italcconfig.h)
 SET(RFBCONFIG ${CMAKE_BINARY_DIR}/rfb/rfbconfig.h)
 
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/italcconfig.h.in ${ITALCCONFIG})
-SET(IN_FILES italc.spec ima/data/italc ima/data/italc.desktop ica/ica.rc ima/italc.rc)
+SET(IN_FILES iTALC.nsi italc.spec ima/data/italc ima/data/italc.desktop ica/ica.rc ima/italc.rc)
 FOREACH(f ${IN_FILES})
-	CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/${f}.in ${CMAKE_BINARY_DIR}/${f})
+	CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/${f}.in ${CMAKE_BINARY_DIR}/${f} @ONLY)
 ENDFOREACH(f ${IN_FILES})
 
 FILE(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/rfb)
@@ -192,6 +204,18 @@ ADD_CUSTOM_TARGET(dist
 			COMMAND rm -rf ${TMP})
 
 SET_DIRECTORY_PROPERTIES(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "italcconfig.h")
+
+ADD_CUSTOM_TARGET(win32-nsi
+			COMMAND make
+			COMMAND rm -rf ${TMP}
+			COMMAND mkdir -p ${TMP}
+			COMMAND cp lib/ItalcCore.dll ica/ica.exe ica/vnchooks.dll ima/italc.exe setup/setup.exe ${TMP}
+			COMMAND ${STRIP} ${TMP}/*
+			COMMAND cp ${CMAKE_SOURCE_DIR}/COPYING ${TMP}
+			COMMAND cp ${CMAKE_SOURCE_DIR}/COPYING ${TMP}/LICENSE.TXT
+			COMMAND cp ${CMAKE_SOURCE_DIR}/README ${TMP}/README.TXT
+			COMMAND makensis iTALC.nsi
+			COMMAND rm -rf ${TMP})
 
 
 #

@@ -70,6 +70,7 @@ char* g_szRepeaterHost = NULL;
 // sf@2007 - New shutdown order handling stuff (with uvnc_service)
 bool			fShutdownOrdered = false;
 static HANDLE		hShutdownEvent = NULL;
+HANDLE		hShutdownEventcad = NULL;
 MMRESULT			mmRes;
 
 void WRITETOLOG(char *szText, int size, DWORD *byteswritten, void *);
@@ -134,8 +135,8 @@ Myinit(HINSTANCE hInstance)
     //Load all messages from ressource file
     Load_Localization(hInstResDLL) ;
 	vnclog.SetFile();
-//	vnclog.SetMode(2);
-//	vnclog.SetLevel(10);
+	vnclog.SetMode(1);
+	vnclog.SetLevel(LL_INTWARN);
 
 #ifdef _DEBUG
 	{
@@ -828,16 +829,23 @@ DWORD WINAPI imp_desktop_thread(LPVOID lpParam)
 		vnclog.Print(LL_INTERR, VNCLOG("PostAddNewRepeaterClient II\n"));
 		vncService::PostAddNewRepeaterClient();
 	}
+	bool Runonce=false;
 	MSG msg;
-	while (GetMessage(&msg,0,0,0) != 0 && !fShutdownOrdered)
+	while (GetMessage(&msg,0,0,0) != 0)
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
+		if (fShutdownOrdered && !Runonce)
+		{
+			Runonce=true;
+#ifndef ULTRAVNC_ITALC_SUPPORT
+			menu->Shutdown(true);
+#endif
+		}
 	}
 
 #ifndef ULTRAVNC_ITALC_SUPPORT
 	// sf@2007 - Close all (vncMenu,tray icon, connections...)
-	menu->Shutdown();
 
 	if (menu != NULL)
 		delete menu;
@@ -948,6 +956,7 @@ int WinVNCAppMain()
 	// sf@2007 - New impersonation thread stuff for tray icon & menu
 	// Subscribe to shutdown event
 	hShutdownEvent = OpenEvent(EVENT_ALL_ACCESS, FALSE, "Global\\SessionEventUltra");
+	hShutdownEventcad = OpenEvent(EVENT_MODIFY_STATE, FALSE, "Global\\SessionEventUltraCad");
 	if (hShutdownEvent) ResetEvent(hShutdownEvent);
 	vnclog.Print(LL_STATE, VNCLOG("***************** SDEvent created \n"));
 	// Create the timer that looks periodicaly for shutdown event
@@ -983,6 +992,7 @@ int WinVNCAppMain()
 		delete instancehan;
 
 	if (hShutdownEvent)CloseHandle(hShutdownEvent);
+	if (hShutdownEventcad)CloseHandle(hShutdownEventcad);
 	vnclog.Print(LL_STATE, VNCLOG("################## SHUTING DOWN SERVER ####################\n"));
 
 	//adzm 2009-06-20

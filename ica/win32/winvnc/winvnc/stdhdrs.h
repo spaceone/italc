@@ -38,6 +38,8 @@
 #include <process.h>
 #include <crtdbg.h>
 
+#include <QtCore/QString>
+
 #define __inout
 #include "dpi.h"
 
@@ -52,15 +54,17 @@ extern VNCLog vnclog;
 // No logging at all
 #define LL_NONE		0
 // Log server startup/shutdown
-#define LL_STATE	0
+#define LL_STATE	1
 // Log connect/disconnect
-#define LL_CLIENTS	1
+#define LL_CLIENTS	2
 // Log connection errors (wrong pixfmt, etc)
-#define LL_CONNERR	0
+#define LL_CONNERR	3
 // Log socket errors
 #define LL_SOCKERR	4
 // Log internal errors
-#define LL_INTERR	0
+#define LL_INTERR	5
+
+#define LL_ERROR	6
 
 // Log internal warnings
 #define LL_INTWARN	8
@@ -85,7 +89,7 @@ extern VNCLog vnclog;
 #define SOCKET_KEEPALIVE_INTERVAL 1000
 
 // Macros for sticking in the current file name
-#define VNCLOG(s)	(__FILE__ " : " s)
+#define VNCLOG(s)	(QString("%1 : %2").arg(__PRETTY_FUNCTION__).arg(s).toUtf8().constData())
 #if MSC_VER > 12
 #ifndef _X64
 #pragma comment(linker,"/manifestdependency:\"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='6595b64144ccf1df' language='*'\"")

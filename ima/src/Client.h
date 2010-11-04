@@ -23,7 +23,6 @@
  *
  */
 
-
 #ifndef _CLIENT_H
 #define _CLIENT_H
 
@@ -174,6 +173,10 @@ public:
 	void execCmds( const QString & _cmds );
 
 
+private slots:
+	void setUpdateFlag();
+
+
 private:
 	States currentState() const;
 
@@ -184,6 +187,8 @@ private:
 
 	ItalcVncConnection * m_vncConn;
 	ItalcCoreConnection * m_coreConn;
+
+	bool m_framebufferUpdated;
 
 	QString m_displayName;
 	QString m_host;

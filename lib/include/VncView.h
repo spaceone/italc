@@ -70,11 +70,12 @@ public:
 		return &m_vncConn;
 	}
 
-	QSize scaledSize( const QSize & _default = QSize() ) const;
-
-	QSize framebufferSize() const;
+	QSize scaledSize() const;
+	QSize framebufferSize() const
+	{
+		return m_framebufferSize;
+	}
 	QSize sizeHint() const;
-	QSize minimumSizeHint() const;
 
 
 public slots:
@@ -87,11 +88,13 @@ signals:
 	void keyEvent( int, bool );
 	void startConnection();
 	void connectionEstablished();
+	void sizeHintChanged();
 
 
 private slots:
 	void updateCursorShape( const QImage &cursorShape, int xh, int yh );
 	void updateImage( int x, int y, int w, int h );
+	void updateSizeHint( int w, int h );
 
 
 private:
@@ -120,14 +123,13 @@ private:
 	bool m_repaint;
 	FastQImage m_frame;
 	FastQImage m_cursorShape;
+	QSize m_framebufferSize;
 	int m_cursorHotX;
 	int m_cursorHotY;
 	bool m_viewOnly;
 	bool m_viewOnlyFocus;
 	bool m_scaledView;
 	bool m_initDone;
-
-	QPoint m_viewOffset;
 
 	int m_buttonMask;
 	QMap<unsigned int, bool> m_mods;

@@ -22,12 +22,14 @@
  *
  */
 
+#include <QtCore/QDebug>
+#include <QtCore/QProcess>
 #include <QtGui/QApplication>
 #include <QtGui/QMessageBox>
-#include <QtCore/QProcess>
 
 #include "WindowsService.h"
 #include "LocalSystem.h"
+#include "Logger.h"
 
 #ifdef ITALC_BUILD_WIN32
 
@@ -54,12 +56,15 @@ public:
 		char appPath[MAX_PATH];
 		if( GetModuleFileName( NULL, appPath, ARRAYSIZE(appPath) ) )
 		{
+			LogStream() << "Starting core server for user"
+						<< LocalSystem::User::loggedOnUser().name();
 			// run with the same user as winlogon.exe does
 			m_subProcessHandle =
 				LocalSystem::Process(
 					LocalSystem::Process::findProcessId( "winlogon.exe",
 															sessionId )
-									).runAsUser( appPath, "winsta0\\winlogon" );
+									).runAsUser( appPath,
+											LocalSystem::Desktop().name() );
 		}
 	}
 
@@ -67,7 +72,13 @@ public:
 	{
 		if( m_subProcessHandle )
 		{
-			TerminateProcess( m_subProcessHandle, 0 );
+			ilog( Info, "Waiting for core server to shutdown" );
+			if( WaitForSingleObject( m_subProcessHandle, 10000 ) ==
+																WAIT_TIMEOUT )
+			{
+				ilog( Warning, "Terminating core server" );
+				TerminateProcess( m_subProcessHandle, 0 );
+			}
 			CloseHandle( m_subProcessHandle ),
 			m_subProcessHandle = NULL;
 		}
@@ -167,16 +178,19 @@ bool WindowsService::evalArgs( int &argc, char **argv )
 		return false;
 	}
 
-	const QString cmd = argv[1];
-	if( cmd == m_arg )
+	if( argv[1] == m_arg )
 	{
+		Logger l( "ItalcServiceMonitor" );
 		return runAsService();
 	}
 
 	QApplication app( argc, argv );
 	initCoreApplication( &app );
 
-	m_quiet = app.arguments().contains( "-quiet" );
+	QStringList args = app.arguments();
+	args.removeFirst();
+
+	m_quiet = args.removeAll( "-quiet" ) > 0;
 
 	struct ServiceOp
 	{
@@ -193,21 +207,30 @@ bool WindowsService::evalArgs( int &argc, char **argv )
 		{ "", NULL }
 	} ;
 
-	for( size_t i = 0; i < sizeof( serviceOps ); ++i )
+	foreach( const QString &arg, args )
 	{
-		if( cmd == serviceOps[i].arg )
+		for( size_t i = 0; i < sizeof( serviceOps ); ++i )
 		{
-			// make sure to run as administrator.
-			if( !isRunningAsAdmin() )
+			if( arg == serviceOps[i].arg )
 			{
-				runAsAdmin( appPath, serviceOps[i].arg );
+				// make sure to run as administrator.
+				if( !isRunningAsAdmin() )
+				{
+					QString serviceArgs = serviceOps[i].arg;
+					if( m_quiet )
+					{
+						serviceArgs += " -quiet";
+					}
+					runAsAdmin( appPath, serviceArgs.toUtf8().constData() );
+				}
+				else
+				{
+					(this->*serviceOps[i].opFunc)();
+				}
+				return true;
 			}
-			else
-			{
-				(this->*serviceOps[i].opFunc)();
-			}
-			return true;
 		}
+		qWarning() << "Unknown option" << arg;
 	}
 
 	return false;
@@ -220,6 +243,7 @@ WindowsService *WindowsService::s_this = NULL;
 SERVICE_STATUS WindowsService::s_status;
 SERVICE_STATUS_HANDLE WindowsService::s_statusHandle;
 HANDLE WindowsService::s_stopServiceEvent = (DWORD) NULL;
+QAtomicInt WindowsService::s_sessionChangeEvent = 0;
 
 
 
@@ -675,6 +699,20 @@ DWORD WINAPI WindowsService::serviceCtrl( DWORD _ctrlcode, DWORD dwEventType,
 			// Service control manager just wants to know our state
 			break;
 
+		case SERVICE_CONTROL_SESSIONCHANGE:
+			switch( dwEventType )
+			{
+				case WTS_SESSION_LOGOFF:
+					ilog( Info, "Session change event: WTS_SESSION_LOGOFF" );
+					s_sessionChangeEvent = 1;
+					break;
+				case WTS_SESSION_LOGON:
+					ilog( Info, "Session change event: WTS_SESSION_LOGON" );
+					//s_sessionChangeEvent = 1;	// no need to restart server upon logon
+					break;
+			}
+			break;
+
 		default:
 			// Control code not recognised
 			break;
@@ -703,7 +741,8 @@ bool WindowsService::reportStatus( DWORD state, DWORD exitCode, DWORD waitHint )
 	else
 	{
 		s_status.dwControlsAccepted = SERVICE_ACCEPT_STOP |
-										SERVICE_ACCEPT_SHUTDOWN;
+										SERVICE_ACCEPT_SHUTDOWN |
+										SERVICE_ACCEPT_SESSIONCHANGE;
 	}
 
 	// Save the new status we've been given
@@ -722,6 +761,8 @@ bool WindowsService::reportStatus( DWORD state, DWORD exitCode, DWORD waitHint )
 		s_status.dwCheckPoint = checkpoint++;
 	}
 
+	ilogf( Debug, "Reporting service status: %d", state );
+
 	// Tell the SCM our new status
 	if( !( result = SetServiceStatus( s_statusHandle, &s_status ) ) )
 	{
@@ -739,26 +780,49 @@ void WindowsService::monitorSessions()
 {
 	ItalcServiceSubProcess italcProcess;
 
-	HANDLE hEvent = OpenEvent( EVENT_ALL_ACCESS, FALSE,
-								"Global\\SessionEventUltra" );
-	ResetEvent( hEvent );
+	HANDLE hShutdownEvent = CreateEvent( NULL, FALSE, FALSE,
+									"Global\\SessionEventUltra" );
+	ResetEvent( hShutdownEvent );
 
 	const DWORD SESSION_INVALID = 0xFFFFFFFF;
-	DWORD sessionId = SESSION_INVALID ;
 	DWORD oldSessionId = SESSION_INVALID;
 
-    while( WaitForSingleObject( s_stopServiceEvent, 1000 ) == WAIT_TIMEOUT )
+	while( WaitForSingleObject( s_stopServiceEvent, 1000 ) == WAIT_TIMEOUT )
 	{
-		sessionId = WTSGetActiveConsoleSessionId();
-		if( oldSessionId != sessionId )
+		bool sessionChanged = s_sessionChangeEvent.testAndSetOrdered( 1, 0 );
+		// ignore session change events on Windows Vista and Windows 7 as
+		// monitoring session IDs is reliable enough there and prevents us
+		// from uneccessary server restarts
+		if( sessionChanged &&
+			( QSysInfo::windowsVersion() == QSysInfo::WV_VISTA ||
+				QSysInfo::windowsVersion() == QSysInfo::WV_WINDOWS7 ) )
 		{
-			if( oldSessionId != SESSION_INVALID )
+			ilog( Info, "Ignoring session change event as the operating system "
+						"is recent enough" );
+			sessionChanged = false;
+		}
+
+		const DWORD sessionId = WTSGetActiveConsoleSessionId();
+		if( oldSessionId != sessionId || sessionChanged )
+		{
+			ilogf( Info, "Session ID changed from %d to %d",
+									oldSessionId, sessionId );
+			// some logic for not reacting to desktop changes when the screen
+			// locker got active - we also don't update oldSessionId so when
+			// switching back to the original desktop, the above condition
+			// should not be met and nothing should happen
+			if( LocalSystem::Desktop::screenLockDesktop().isActive() )
 			{
-				SetEvent( hEvent );
-				Sleep( 2000 );
+				ilog( Debug, "ScreenLockDesktop is active - ignoring" );
+				continue;
+			}
+
+			if( oldSessionId != SESSION_INVALID || sessionChanged )
+			{
+				SetEvent( hShutdownEvent );
 				italcProcess.stop();
 			}
-			if( sessionId != SESSION_INVALID )
+			if( sessionId != SESSION_INVALID || sessionChanged )
 			{
 				italcProcess.start( sessionId );
 			}
@@ -766,11 +830,12 @@ void WindowsService::monitorSessions()
 		}
 	}
 
-	SetEvent( hEvent );
-	Sleep( 2000 );
+	ilog( Info, "Service shutdown" );
+
+	SetEvent( hShutdownEvent );
 	italcProcess.stop();
 
-	CloseHandle( hEvent );
+	CloseHandle( hShutdownEvent );
 }
 
 

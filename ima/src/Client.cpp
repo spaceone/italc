@@ -23,7 +23,6 @@
  *
  */
 
-
 #include "Client.h"
 #include "DemoServerMaster.h"
 #include "ItalcVncConnection.h"
@@ -46,6 +45,7 @@ Client::Client( const QString & _host,
 	m_state( State_Inactive ),
 	m_vncConn( new ItalcVncConnection ),
 	m_coreConn( new ItalcCoreConnection( m_vncConn ) ),
+	m_framebufferUpdated( false ),
 	m_displayName( _displayName ),
 	m_host( _host ),
 	m_mac( _mac ),
@@ -162,6 +162,14 @@ void Client::changeMode( const Modes _new_mode )
 		m_user = QString();
 	}
 }*/
+
+
+
+
+void Client::setUpdateFlag()
+{
+	m_framebufferUpdated = true;
+}
 
 
 

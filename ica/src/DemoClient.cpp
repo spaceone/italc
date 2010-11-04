@@ -42,23 +42,32 @@ DemoClient::DemoClient( const QString &host, bool fullscreen ) :
 	m_toplevel->setWindowTitle( tr( "iTALC Demo" ) );
 	m_toplevel->setWindowIcon( QPixmap( ":/resources/display.png" ) );
 	m_toplevel->setAttribute( Qt::WA_DeleteOnClose, false );
-	m_toplevel->resize( QApplication::desktop()->availableGeometry( m_toplevel ).size() );
+	m_toplevel->resize( QApplication::desktop()->availableGeometry( m_toplevel ).size() - QSize( 10, 30 ) );
 
-	QVBoxLayout * toplevel_layout = new QVBoxLayout;
-	toplevel_layout->setMargin( 0 );
-	toplevel_layout->setSpacing( 0 );
-	toplevel_layout->addWidget(
-						new VncView( host, m_toplevel, VncView::DemoMode ) );
+	m_vncView = new VncView( host, m_toplevel, VncView::DemoMode );
 
-	m_toplevel->setLayout( toplevel_layout );
+	QVBoxLayout * toplevelLayout = new QVBoxLayout;
+	toplevelLayout->setMargin( 0 );
+	toplevelLayout->setSpacing( 0 );
+	toplevelLayout->addWidget( m_vncView );
+
+	m_toplevel->setLayout( toplevelLayout );
 
 	connect( m_toplevel, SIGNAL( destroyed( QObject * ) ),
 			this, SLOT( viewDestroyed( QObject * ) ) );
+	connect( m_vncView, SIGNAL( sizeHintChanged() ),
+				this, SLOT( resizeToplevelWidget() ) );
+
+	m_toplevel->move( 0, 0 );
 	if( !fullscreen )
 	{
-		m_toplevel->showMaximized();
-		LocalSystem::activateWindow( m_toplevel );
+		m_toplevel->show();
 	}
+	else
+	{
+		m_toplevel->showFullScreen();
+	}
+	LocalSystem::activateWindow( m_toplevel );
 }
 
 
@@ -81,4 +90,18 @@ void DemoClient::viewDestroyed( QObject * _obj )
 	deleteLater();
 }
 
+
+
+
+void DemoClient::resizeToplevelWidget()
+{
+	if( !( m_toplevel->windowState() & Qt::WindowFullScreen ) )
+	{
+		m_toplevel->resize( m_vncView->sizeHint() );
+	}
+	else
+	{
+		m_vncView->resize( m_toplevel->size() );
+	}
+}
 

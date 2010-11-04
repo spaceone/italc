@@ -27,16 +27,27 @@
 #include <QtNetwork/QHostAddress>
 
 #include "Ipc/Slave.h"
+#include "Logger.h"
 
 namespace Ipc
 {
 
 Slave::Slave( const Ipc::Id &masterId, const Ipc::Id &slaveId ) :
 	QTcpSocket(),
-	m_slaveId( slaveId )
+	m_slaveId( slaveId ),
+	m_pingTimer( this ),
+	m_lastPingResponse( QTime::currentTime() )
 {
 	connect( this, SIGNAL( readyRead() ),
 				this, SLOT( receiveMessage() ) );
+	connect( this, SIGNAL( error( QAbstractSocket::SocketError ) ),
+				QCoreApplication::instance(), SLOT( quit() ) );
+
+	m_pingTimer.setInterval( 1000 );
+	connect( &m_pingTimer, SIGNAL( timeout() ),
+				this, SLOT( masterPing() ) );
+	connect( this, SIGNAL( connected() ),
+				&m_pingTimer, SLOT( start() ) );
 
 	connectToHost( QHostAddress::LocalHost, masterId.toInt() );
 }
@@ -51,6 +62,11 @@ void Slave::receiveMessage()
 		Ipc::Msg m;
 		if( m.receive( this ).isValid() )
 		{
+			if( m.cmd() != Ipc::Commands::Ping )
+			{
+				qDebug() << "Slave" << m_slaveId << "received message" << m.cmd();
+			}
+
 			bool handled = false;
 			if( handleMessage( m ) )
 			{
@@ -69,6 +85,11 @@ void Slave::receiveMessage()
 						send( this );
 				handled = true;
 			}
+			else if( m.cmd() == Ipc::Commands::Ping )
+			{
+				m_lastPingResponse = QTime::currentTime();
+				handled = true;
+			}
 
 			if( !handled )
 			{
@@ -76,7 +97,30 @@ void Slave::receiveMessage()
 						addArg( Ipc::Arguments::Command, m.cmd() ).send( this );
 			}
 		}
+		else
+		{
+			LogStream( Logger::LogLevelError )
+								<< "Slave" << m_slaveId
+								<< "received invalid message from master";
+		}
 	}
 }
+
+
+
+
+void Slave::masterPing()
+{
+	Ipc::Msg( Ipc::Commands::Ping ).send( this );
+
+	if( m_lastPingResponse.msecsTo( QTime::currentTime() ) > 10000 )
+	{
+		qWarning() << "Ping timeout for slave" << m_slaveId;
+		//QCoreApplication::quit();
+	}
+}
+
+
+
 
 }

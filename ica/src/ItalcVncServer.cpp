@@ -29,6 +29,7 @@
 
 #ifdef ITALC_BUILD_WIN32
 #include <windows.h>
+#include <pthread.h>
 #endif
 
 #include <QtCore/QCoreApplication>
@@ -114,9 +115,6 @@ static void lvs_italcSecurityHandler( struct _rfbClientRec *cl )
 
 #ifdef ITALC_BUILD_WIN32
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 extern bool Myinit( HINSTANCE hInstance );
 extern int WinVNCAppMain();
 
@@ -192,18 +190,33 @@ static void runX11vnc( QStringList cmdline, int port, bool plainVnc )
 
 	// run x11vnc-server
 	x11vnc_main( argc, argv );
+
 }
 
 
 
 void ItalcVncServer::runVncReflector( int srcPort, int dstPort )
 {
+#ifdef ITALC_BUILD_WIN32
+	pthread_win32_process_attach_np();
+	pthread_win32_thread_attach_np();
+#endif
+
 	QStringList args;
 	args << "-viewonly"
+		<< "-threads"
 		<< "-reflect"
 		<< QString( "localhost:%1" ).arg( srcPort );
 
-	runX11vnc( args, dstPort, true );
+	while( 1 )
+	{
+		runX11vnc( args, dstPort, true );
+	}
+
+#ifdef ITALC_BUILD_WIN32
+	pthread_win32_thread_detach_np();
+	pthread_win32_process_detach_np();
+#endif
 }
 
 

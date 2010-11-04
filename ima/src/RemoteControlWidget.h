@@ -45,8 +45,8 @@ public:
 
 
 public slots:
-	void appear( void );
-	void disappear( void );
+	void appear();
+	void disappear();
 
 
 protected:
@@ -57,8 +57,8 @@ protected:
 private slots:
 	void updateConnectionAnimation();
 	void updatePosition();
-	void startConnection( void );
-	void connectionEstablished( void );
+	void startConnection();
+	void connectionEstablished();
 
 
 private:
@@ -84,23 +84,29 @@ public:
 						MainWindow * _main_window = NULL );
 	virtual ~RemoteControlWidget();
 
-	QString host( void ) const;
+	const QString &host() const
+	{
+		return m_host;
+	}
 
 
 public slots:
 	void lockStudent( bool );
 	void toggleFullScreen( bool );
 	void toggleViewOnly( bool );
-	void takeSnapshot( void );
+	void takeSnapshot();
 
 
 protected:
-	void updateWindowTitle( void );
+	void updateWindowTitle();
+	virtual void enterEvent( QEvent * );
+	virtual void leaveEvent( QEvent * );
 	virtual void resizeEvent( QResizeEvent * );
 
 
 private slots:
 	void checkKeyEvent( int, bool );
+	void lateInit();
 
 
 private:
@@ -109,7 +115,7 @@ private:
 	RemoteControlWidgetToolBar * m_toolBar;
 	MainWindow * m_mainWindow;
 
-	Qt::WindowStates m_extraStates;
+	QString m_host;
 
 	friend class RemoteControlWidgetToolBar;
 

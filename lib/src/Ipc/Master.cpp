@@ -28,6 +28,7 @@
 
 #include "Ipc/Master.h"
 #include "Ipc/QtSlaveLauncher.h"
+#include "Logger.h"
 
 namespace Ipc
 {
@@ -36,12 +37,15 @@ Master::Master( const QString &applicationFilePath ) :
 	QTcpServer(),
 	m_applicationFilePath( applicationFilePath ),
 	m_socketReceiveMapper( this ),
-	m_processes()
+	m_processes(),
+	m_processMapMutex( QMutex::Recursive )
 {
 	if( !listen( QHostAddress::LocalHost ) )
 	{
 		qCritical( "Error in listen() in Ipc::Master::Master()" );
 	}
+
+	ilogf( Info, "Ipc::Master: listening at port %d", serverPort() );
 
 	connect( &m_socketReceiveMapper, SIGNAL( mapped( QObject *) ),
 				this, SLOT( receiveMessage( QObject * ) ) );
@@ -55,11 +59,15 @@ Master::Master( const QString &applicationFilePath ) :
 
 Master::~Master()
 {
+	QMutexLocker l( &m_processMapMutex );
+
 	const QList<Ipc::Id> processIds = m_processes.keys();
 	foreach( const Ipc::Id &id, processIds )
 	{
 		stopSlave( id );
 	}
+
+	ilog( Info, "Stopped Ipc::Master" );
 }
 
 
@@ -76,13 +84,17 @@ void Master::createSlave( const Ipc::Id &id, SlaveLauncher *slaveLauncher )
 	}
 
 	ProcessInformation pi;
-	pi.sock = NULL;
 
 	pi.slaveLauncher = slaveLauncher;
+
+	m_processMapMutex.lock();
+	m_processes[id] = pi;
+	m_processMapMutex.unlock();
+
+	LogStream() << "Starting slave" << id << "at port" << serverPort();
 	pi.slaveLauncher->start( QStringList() << "-slave" << id <<
 											QString::number( serverPort() ) );
 
-	m_processes[id] = pi;
 }
 
 
@@ -90,8 +102,11 @@ void Master::createSlave( const Ipc::Id &id, SlaveLauncher *slaveLauncher )
 
 void Master::stopSlave( const Ipc::Id &id )
 {
+	QMutexLocker l( &m_processMapMutex );
+
 	if( m_processes.contains( id ) )
 	{
+		LogStream() << "Stopping slave" << id;
 		if( isSlaveRunning( id ) )
 		{
 			sendMessage( id, Ipc::Commands::Quit );
@@ -110,6 +125,10 @@ void Master::stopSlave( const Ipc::Id &id )
 
 		m_processes.remove( id );
 	}
+	else
+	{
+		qDebug() << "Can't stop slave" << id << "as it does not exist";
+	}
 }
 
 
@@ -117,6 +136,8 @@ void Master::stopSlave( const Ipc::Id &id )
 
 bool Master::isSlaveRunning( const Ipc::Id &id )
 {
+	QMutexLocker l( &m_processMapMutex );
+
 	if( m_processes.contains( id ) )
 	{
 		return m_processes[id].slaveLauncher->isRunning();
@@ -130,16 +151,25 @@ bool Master::isSlaveRunning( const Ipc::Id &id )
 
 void Master::sendMessage( const Ipc::Id &id, const Ipc::Msg &msg )
 {
+	QMutexLocker l( &m_processMapMutex );
+
 	if( m_processes.contains( id ) )
 	{
 		if( m_processes[id].sock )
 		{
+			qDebug() << "Sending message" << msg.cmd() << "to slave" << id;
 			msg.send( m_processes[id].sock );
 		}
 		else
 		{
+			qDebug() << "Queuing message" << msg.cmd() << "for slave" << id;
 			m_processes[id].pendingMessages << msg;
 		}
+	}
+	else
+	{
+		qWarning() << "Can't send message" << msg.cmd()
+					<< "to non-existing slave" << id;
 	}
 }
 
@@ -148,10 +178,13 @@ void Master::sendMessage( const Ipc::Id &id, const Ipc::Msg &msg )
 
 Ipc::Msg Master::receiveMessage( const Ipc::Id &id )
 {
+	QMutexLocker l( &m_processMapMutex );
+
 	Ipc::Msg m;
 	if( m_processes.contains( id ) && m_processes[id].sock )
 	{
 		m.receive( m_processes[id].sock );
+		qDebug() << "Received message" << m.cmd() << "from slave" << id;
 	}
 
 	return m;
@@ -162,6 +195,8 @@ Ipc::Msg Master::receiveMessage( const Ipc::Id &id )
 
 void Master::acceptConnection()
 {
+	qDebug( "Accepting connection" );
+
 	QTcpSocket *s = nextPendingConnection();
 
 	// connect to readyRead() signal of new connection
@@ -192,6 +227,8 @@ void Master::receiveMessage( QObject *sockObj )
 		Ipc::Msg m;
 		if( m.receive( sock ).isValid() )
 		{
+			QMutexLocker l( &m_processMapMutex );
+
 			// search for slave ID
 			Ipc::Id slaveId;
 			for( ProcessMap::ConstIterator it = m_processes.begin();
@@ -203,11 +240,21 @@ void Master::receiveMessage( QObject *sockObj )
 				}
 			}
 
+			if( m.cmd() != Ipc::Commands::Ping )
+			{
+				qDebug() << "Received message" << m.cmd() << "from slave" << slaveId;
+			}
+
 			if( m.cmd() == Ipc::Commands::UnknownCommand )
 			{
 				qWarning() << "Slave" << slaveId
 						<< "could not handle command"
 						<< m.arg( Ipc::Arguments::Command );
+			}
+			else if( m.cmd() == Ipc::Commands::Ping )
+			{
+				// send message back
+				m.send( sock );
 			}
 			else if( m.cmd() == Ipc::Commands::Identify )
 			{
@@ -224,9 +271,11 @@ void Master::receiveMessage( QObject *sockObj )
 					{
 						m.send( sock );
 					}
+					m_processes[id].pendingMessages.clear();
 				}
 				else
 				{
+					qWarning() << "Slave not existing or already registered" << id;
 					delete sock;
 					break;
 				}

@@ -89,7 +89,7 @@ RemoteControlWidgetToolBar::RemoteControlWidgetToolBar(
 	ls_btn->setCheckable( true );
 	fs_btn->setCheckable( true );
 	vo_btn->setChecked( viewOnly );
-	fs_btn->setChecked( true );
+	fs_btn->setChecked( false );
 
 	connect( vo_btn, SIGNAL( toggled( bool ) ),
 				_parent, SLOT( toggleViewOnly( bool ) ) );
@@ -146,7 +146,10 @@ RemoteControlWidgetToolBar::~RemoteControlWidgetToolBar()
 void RemoteControlWidgetToolBar::appear()
 {
 	m_showHideTimeLine.setDirection( QTimeLine::Backward );
-	m_showHideTimeLine.resume();
+	if( m_showHideTimeLine.state() != QTimeLine::Running )
+	{
+		m_showHideTimeLine.resume();
+	}
 }
 
 
@@ -154,10 +157,13 @@ void RemoteControlWidgetToolBar::appear()
 
 void RemoteControlWidgetToolBar::disappear()
 {
-	if( !m_connecting )
+	if( !m_connecting && !rect().contains( mapFromGlobal( QCursor::pos() ) ) )
 	{
-		m_showHideTimeLine.setDirection( QTimeLine::Forward );
-		m_showHideTimeLine.resume();
+		if( m_showHideTimeLine.state() != QTimeLine::Running )
+		{
+			m_showHideTimeLine.setDirection( QTimeLine::Forward );
+			m_showHideTimeLine.resume();
+		}
 	}
 }
 
@@ -277,17 +283,19 @@ RemoteControlWidget::RemoteControlWidget( const QString &host,
 	m_coreConnection( new ItalcCoreConnection( m_vncView->vncConnection() ) ),
 	m_toolBar( new RemoteControlWidgetToolBar( this, viewOnly ) ),
 	m_mainWindow( mainWindow ),
-	m_extraStates( Qt::WindowMaximized )
+	m_host( host )
 {
 	setWindowIcon( QPixmap( ":/resources/remote_control.png" ) );
 	setAttribute( Qt::WA_DeleteOnClose, true );
+
 	m_vncView->move( 0, 0 );
 	connect( m_vncView, SIGNAL( mouseAtTop() ), m_toolBar,
 							SLOT( appear() ) );
 	connect( m_vncView, SIGNAL( keyEvent( int, bool ) ),
 				this, SLOT( checkKeyEvent( int, bool ) ) );
-//	showMaximized();
-	//showFullScreen();
+	connect( m_vncView, SIGNAL( connectionEstablished() ),
+					this, SLOT( lateInit() ) );
+
 	show();
 	LocalSystem::activateWindow( this );
 
@@ -304,22 +312,12 @@ RemoteControlWidget::~RemoteControlWidget()
 
 
 
-QString RemoteControlWidget::host() const
-{
-	return "blah";
-/*	return( m_vncView->m_connection ? m_vncView->m_connection->host() :
-								QString::null );*/
-}
-
-
-
-
 void RemoteControlWidget::updateWindowTitle()
 {
 	const QString s = m_vncView->isViewOnly() ?
-			tr( "View live (%1 at host %2)" )
+			tr( "View live (%1 @ %2)" )
 		:
-			tr( "Remote control (%1 at host %2)" );
+			tr( "Remote control (%1 @ %2)" );
 	QString u = m_coreConnection->user();
 	if( u.isEmpty() )
 	{
@@ -330,6 +328,22 @@ void RemoteControlWidget::updateWindowTitle()
 		u = u.section( '(', 1 ).section( ')', 0, 0 );
 	}
 	setWindowTitle( s.arg( u ).arg( host() ) );
+}
+
+
+
+
+void RemoteControlWidget::enterEvent( QEvent * )
+{
+	QTimer::singleShot( 500, m_toolBar, SLOT( disappear() ) );
+}
+
+
+
+
+void RemoteControlWidget::leaveEvent( QEvent * )
+{
+	m_toolBar->appear();
 }
 
 
@@ -355,6 +369,17 @@ void RemoteControlWidget::checkKeyEvent( int key, bool pressed )
 
 
 
+void RemoteControlWidget::lateInit()
+{
+	if( !( windowState() & Qt::WindowFullScreen ) )
+	{
+		resize( m_vncView->sizeHint() );
+	}
+}
+
+
+
+
 void RemoteControlWidget::lockStudent( bool _on )
 {
 	//m_vncView->m_connection->disableLocalInputs( _on );
@@ -372,8 +397,6 @@ void RemoteControlWidget::toggleFullScreen( bool _on )
 	else
 	{
 		setWindowState( windowState() & ~Qt::WindowFullScreen );
-		setWindowState( windowState() | m_extraStates );
-		m_extraStates = Qt::WindowNoState;
 	}
 }
 

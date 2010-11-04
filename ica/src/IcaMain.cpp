@@ -34,6 +34,7 @@
 #include "ItalcCoreServer.h"
 #include "ItalcVncServer.h"
 #include "LocalSystemIca.h"
+#include "Logger.h"
 #include "Debug.h"
 #include "DsaKey.h"
 
@@ -56,6 +57,8 @@ bool eventFilter( void *msg, long *result )
 
 	if( winMsg == WM_QUERYENDSESSION )
 	{
+		ilog( Info, "Got WM_QUERYENDSESSION - initiating server shutdown" );
+
 		// tell UltraVNC server to quit
 		SetEvent( hShutdownEvent );
 	}
@@ -217,14 +220,34 @@ static int runCoreServer( int argc, char **argv )
 	QCoreApplication app( argc, argv );
 
 	initCoreApplication( &app );
+
+	Logger l( "ItalcCoreServer" );
+
 	if( !parseArguments( app.arguments() ) )
 	{
 		return -1;
 	}
 
 #ifdef ITALC_BUILD_WIN32
-	hShutdownEvent = CreateEvent( NULL, FALSE, FALSE,
-									"Global\\SessionEventUltra" );
+	hShutdownEvent = OpenEvent( EVENT_ALL_ACCESS, FALSE,
+								"Global\\SessionEventUltra" );
+	if( !hShutdownEvent )
+	{
+		// no global event available already as we're not running under the
+		// control of the ICA service supervisor?
+		if( GetLastError() == ERROR_FILE_NOT_FOUND )
+		{
+			// then create our own event as otherwise the VNC server main loop
+			// will eat 100% CPU due to failing WaitForSingleObject() calls
+			hShutdownEvent = CreateEvent( NULL, FALSE, FALSE,
+											"Global\\SessionEventUltra" );
+		}
+		else
+		{
+			qCritical( "Could not open or create session event" );
+			return -1;
+		}
+	}
 	app.setEventFilter( eventFilter );
 #endif
 
@@ -243,13 +266,14 @@ static int runCoreServer( int argc, char **argv )
 
 	vncServer.start();
 
-	app.exec();
+	ilog( Info, "Exec" );
+	int ret = app.exec();
 
 #ifdef ITALC_BUILD_WIN32
 	CloseHandle( hShutdownEvent );
 #endif
 
-	return 0;
+	return ret;
 }
 
 
@@ -260,12 +284,17 @@ static int runSlave( int argc, char **argv )
 	Application app( argc, argv );
 
 	initCoreApplication( &app );
+
+	Logger l( "Italc" + SlaveClass::slaveName() );
+
 	if( !parseArguments( app.arguments() ) )
 	{
 		return -1;
 	}
 
 	SlaveClass s;
+
+	ilog( Info, "Exec" );
 
 	return app.exec();
 }
@@ -297,13 +326,17 @@ int main( int argc, char **argv )
 	{
 		const QString arg1 = argv[1];
 #ifdef ITALC_BUILD_WIN32
-		if( arg1.contains( "service" ) )
+		for( int i = 1; i < argc; ++i )
 		{
-			WindowsService winService( "icas", "-service", "iTALC Client",
-										QString(), argc, argv );
-			if( winService.evalArgs( argc, argv ) )
+			if( QString( argv[i] ).contains( "service" ) )
 			{
-				return 0;
+				WindowsService winService( "icas", "-service", "iTALC Client",
+											QString(), argc, argv );
+				if( winService.evalArgs( argc, argv ) )
+				{
+					return 0;
+				}
+				break;
 			}
 		}
 #endif
