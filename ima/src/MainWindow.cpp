@@ -54,67 +54,9 @@
 #include "ConfigWidget.h"
 #include "DecoratedMessageBox.h"
 #include "ToolButton.h"
+#include "ItalcConfiguration.h"
 #include "LocalSystem.h"
 #include "RemoteControlWidget.h"
-
-
-
-extern int __ivs_port;
-extern QString __ivs_host;
-
-
-bool MainWindow::ensureConfigPathExists( void )
-{
-	return LocalSystem::ensurePathExists(
-					LocalSystem::personalConfigDir() );
-}
-
-
-#if 0
-void ItalcCoreServer::allowDemoClient( const QString & _host )
-{
-	const QString h = _host.split( ':' )[0];
-	const QString p = _host.contains( ':' ) ? ':'+_host.split( ':' )[1] : "";
-	// already valid IP?
-	if( QHostAddress().setAddress( h ) )
-	{
-		if( !s_allowedDemoClients.contains( _host ) )
-		{
-			s_allowedDemoClients.push_back( _host );
-		}
-		return;
-	}
-	foreach( const QHostAddress a,
-				QHostInfo::fromName( h ).addresses() )
-	{
-		const QString h2 = a.toString();
-		if( !s_allowedDemoClients.contains( h2+p ) )
-		{
-			s_allowedDemoClients.push_back( h2+p );
-		}
-	}
-}
-
-
-
-
-void ItalcCoreServer::denyDemoClient( const QString & _host )
-{
-	const QString h = _host.split( ':' )[0];
-	const QString p = _host.contains( ':' ) ? ':'+_host.split( ':' )[1] : "";
-	// already valid IP?
-	if( QHostAddress().setAddress( h ) )
-	{
-		s_allowedDemoClients.removeAll( _host );
-		return;
-	}
-	foreach( const QHostAddress a,
-				QHostInfo::fromName( h ).addresses() )
-	{
-		s_allowedDemoClients.removeAll( a.toString()+p );
-	}
-}
-#endif
 
 
 
@@ -135,17 +77,18 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 
 	setWindowTitle( tr( "iTALC" ) + " " + ITALC_VERSION );
 
-	if( MainWindow::ensureConfigPathExists() == false )
+	if( LocalSystem::Path::ensurePathExists(
+						LocalSystem::Path::personalConfigDataPath() ) == false )
 	{
 		if( splashScreen != NULL )
 		{
 			splashScreen->hide();
 		}
-		DecoratedMessageBox::information( tr( "No write-access" ),
+		DecoratedMessageBox::information( tr( "No write access" ),
 			tr( "Could not read/write or create directory %1! "
 			"For running iTALC, make sure you're permitted to "
 			"create or write this directory." ).arg(
-					LocalSystem::personalConfigDir() ) );
+					LocalSystem::Path::personalConfigDataPath() ) );
 		return;
 	}
 

@@ -65,15 +65,6 @@ public slots:
 	void remoteLogon();
 	void directSupport();
 
-	// slots for actions in view-menu
-	void adjustWindows();
-	void arrangeWindowsToggle( bool _on );
-	void increaseClientSize();
-	void decreaseClientSize();
-
-	// slots for config-widget in side-bar
-	void updateIntervalChanged( int _value );
-
 
 private:
 	ClassroomList m_classrooms;

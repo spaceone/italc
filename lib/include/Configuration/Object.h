@@ -38,8 +38,11 @@ class Object : public QObject
 public:
 	typedef QMap<QString, QVariant> DataMap;
 
-	Object( Store::Backend _backend, Store::Scope _scope );
+	Object( Store::Backend backend, Store::Scope scope );
+	Object( Store *store );
 	~Object();
+
+	Object &operator+=( const Object &ref );
 
 	QString value( const QString & _key,
 			const QString & _parentKey = QString() ) const;
@@ -48,48 +51,96 @@ public:
 			const QString & _value,
 			const QString & _parentKey = QString() );
 
-	void flushStore( void )
+	void reloadFromStore()
 	{
-		m_store->flush( this );
+		if( m_store )
+		{
+			m_store->load( this );
+		}
 	}
 
-	const DataMap & data( void ) const
+	void flushStore()
+	{
+		if( m_store )
+		{
+			m_store->flush( this );
+		}
+	}
+
+	void clear()
+	{
+		m_data.clear();
+	}
+
+	const DataMap & data() const
 	{
 		return m_data;
 	}
 
 
+signals:
+	void configurationChanged();
+
+
 private:
-	Configuration::Store * m_store;
+	static DataMap setValueRecursive( DataMap data,
+										QStringList subLevels,
+										const QString &key,
+										const QString &value );
+	Configuration::Store *m_store;
+	bool m_customStore;
 	DataMap m_data;
 
 } ;
 
 
-#define MAP_CONFIG_PROPERTY(get,set,key,parentKey)		\
-	public slots:						\
-		inline void set( const QString & val )		\
-		{						\
-			setValue( key, val, parentKey );	\
-		}						\
-	public:							\
-		inline QString get( void ) const		\
-		{						\
-			return value( key, parentKey );		\
+#define DECLARE_CONFIG_STRING_PROPERTY(get,key,parentKey)\
+	public:											\
+		inline QString get() const					\
+		{											\
+			return value( key, parentKey );			\
 		}
 
-#define MAP_CONFIG_INT_PROPERTY(get,set,key,parentKey)		\
-	public slots:						\
-		inline void set( int val )			\
-		{						\
-			setValue( key, QString::number( val ),	\
-						parentKey );	\
-		}						\
-	public:							\
-		inline int get( void ) const			\
-		{						\
-			return value( key, parentKey ).toInt();	\
+#define DECLARE_CONFIG_INT_PROPERTY(get,key,parentKey)	\
+	public:												\
+		inline int get() const							\
+		{												\
+			return value( key, parentKey ).toInt();		\
 		}
+
+#define DECLARE_CONFIG_BOOL_PROPERTY(get,key,parentKey)	\
+	public:												\
+		bool get() const								\
+		{												\
+			return value( key, parentKey ).toInt() ?	\
+										true : false;	\
+		}
+
+#define DECLARE_CONFIG_PROPERTY(className,config,type, get, set, key, parentKey)			\
+			DECLARE_CONFIG_##type##_PROPERTY(get,key,parentKey)
+
+
+#define IMPLEMENT_CONFIG_SET_STRING_PROPERTY(className,set,key,parentKey)\
+		void className::set( const QString &val )						\
+		{																\
+			setValue( key, val,	parentKey );							\
+		}
+
+#define IMPLEMENT_CONFIG_SET_INT_PROPERTY(className,set,key,parentKey)	\
+		void className::set( int val )									\
+		{																\
+			setValue( key, QString::number( val ), parentKey );			\
+		}
+
+#define IMPLEMENT_CONFIG_SET_BOOL_PROPERTY(className,set,key,parentKey)	\
+		void className::set( bool val )									\
+		{																\
+			setValue( key, QString::number( val ), parentKey );			\
+		}
+
+#define IMPLEMENT_CONFIG_SET_PROPERTY(className, config,type, get, set, key, parentKey)	\
+			IMPLEMENT_CONFIG_SET_##type##_PROPERTY(className,set,key,parentKey)
+
 
 }
 

@@ -1,7 +1,7 @@
 /*
  * Configuration/XmlStore.h - XmlStore class
  *
- * Copyright (c) 2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2009-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -34,10 +34,16 @@ namespace Configuration
 class XmlStore : public Store
 {
 public:
-	XmlStore( Scope _scope );
+	XmlStore( Scope scope, const QString & file = QString() );
 
-	virtual void load( Object * _obj );
-	virtual void flush( Object * _obj );
+	virtual void load( Object *obj );
+	virtual void flush( Object *obj );
+
+
+private:
+	QString configurationFilePath();
+
+	QString m_file;
 
 } ;
 

@@ -49,7 +49,6 @@ class RemoteControlWidget;
 class UserList;
 
 
-
 class MainWindow : public QMainWindow, public Ui::MainWindow
 {
 	Q_OBJECT
@@ -81,8 +80,6 @@ public:
 	{
 		return m_sideBar;
 	}
-
-	static bool ensureConfigPathExists();
 
 	void remoteControlDisplay( const QString & _hostname,
 					bool _view_only = false,

@@ -1,9 +1,7 @@
 /*
- * LocalSystemIma.cpp - namespace localSystem, providing an interface for
- *                      transparent usage of operating-system-specific
- *                      functions
+ * KeyAssistantModePage.cpp - QWizardPage for assistant mode selection
  *
- * Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -24,21 +22,33 @@
  *
  */
 
+#include <QtGui/QButtonGroup>
 
-#include <italcconfig.h>
+#include "AccessKeyAssistant.h"
+#include "KeyAssistantModePage.h"
+#include "ui_AccessKeyAssistant.h"
 
-#include "LocalSystemIma.h"
 
-
-namespace LocalSystem
+KeyAssistantModePage::KeyAssistantModePage() :
+	QWizardPage(),
+	m_modeButtonGroup( NULL )
 {
-
-
-void initialize()
-{
-	LocalSystem::initialize( NULL );
 }
 
 
-} // end of namespace LocalSystem
+
+void KeyAssistantModePage::setUi( Ui::AccessKeyAssistant *ui )
+{
+	m_modeButtonGroup = ui->assistantModeButtonGroup;
+	connect( m_modeButtonGroup, SIGNAL( buttonClicked( int ) ),
+					this, SIGNAL( completeChanged() ) );
+}
+
+
+
+bool KeyAssistantModePage::isComplete() const
+{
+	return m_modeButtonGroup && m_modeButtonGroup->checkedButton() != NULL;
+}
+
 

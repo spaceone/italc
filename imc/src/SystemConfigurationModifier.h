@@ -1,7 +1,8 @@
 /*
- * LocalSystemIma.h - misc. platform-specific stuff
+ * SystemConfigurationModifier.h - class for easy modification of iTALC-related
+ *                                 settings in the operating system
  *
- * Copyright (c) 2007-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,15 +23,19 @@
  *
  */
 
+#ifndef _SYSTEM_CONFIGURATION_MODIFIER_H
+#define _SYSTEM_CONFIGURATION_MODIFIER_H
 
-#ifndef _LOCAL_SYSTEM_IMA_H
-#define _LOCAL_SYSTEM_IMA_H
+#include <QtCore/QString>
 
-#include "LocalSystem.h"
-
-namespace LocalSystem
+class SystemConfigurationModifier
 {
-	void initialize( void );
-}
+public:
+	static bool setServiceAutostart( bool enabled );
+	static bool setServiceArguments( const QString &serviceArgs );
+
+	static bool enableFirewallException( bool enabled );
+
+} ;
 
 #endif

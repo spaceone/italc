@@ -156,7 +156,7 @@ SET(ITALCCONFIG ${CMAKE_BINARY_DIR}/italcconfig.h)
 SET(RFBCONFIG ${CMAKE_BINARY_DIR}/rfb/rfbconfig.h)
 
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/italcconfig.h.in ${ITALCCONFIG})
-SET(IN_FILES iTALC.nsi italc.spec ima/data/italc ima/data/italc.desktop ica/ica.rc ima/italc.rc)
+SET(IN_FILES iTALC.nsi italc.spec ima/data/italc ima/data/italc.desktop ica/ica.rc ima/italc.rc imc/imc.rc)
 FOREACH(f ${IN_FILES})
 	CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/${f}.in ${CMAKE_BINARY_DIR}/${f} @ONLY)
 ENDFOREACH(f ${IN_FILES})
@@ -186,6 +186,7 @@ LINK_LIBRARIES(${QT_LIBRARIES} ${ZLIB_LIBRARIES} ${JPEG_LIBRARIES} ${OPENSSL_LIB
 ADD_SUBDIRECTORY(lib)
 ADD_SUBDIRECTORY(ica)
 ADD_SUBDIRECTORY(ima)
+ADD_SUBDIRECTORY(imc)
 
 INSTALL()
 
@@ -209,7 +210,7 @@ ADD_CUSTOM_TARGET(win32-nsi
 			COMMAND make
 			COMMAND rm -rf ${TMP}
 			COMMAND mkdir -p ${TMP}
-			COMMAND cp lib/ItalcCore.dll ica/ica.exe ica/vnchooks.dll ima/italc.exe setup/setup.exe ${TMP}
+			COMMAND cp lib/ItalcCore.dll ica/ica.exe ica/vnchooks.dll ima/italc.exe imc/imc.exe ${TMP}
 			COMMAND ${STRIP} ${TMP}/*
 			COMMAND cp ${CMAKE_SOURCE_DIR}/COPYING ${TMP}
 			COMMAND cp ${CMAKE_SOURCE_DIR}/COPYING ${TMP}/LICENSE.TXT

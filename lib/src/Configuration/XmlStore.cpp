@@ -1,7 +1,7 @@
 /*
  * ConfigurationXmlStore.cpp - implementation of XmlStore
  *
- * Copyright (c) 2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2009-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,20 +22,23 @@
  *
  */
 
+#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtXml/QDomDocument>
 
 #include "Configuration/XmlStore.h"
 #include "Configuration/Object.h"
+#include "ItalcConfiguration.h"
 #include "LocalSystem.h"
-#include "DecoratedMessageBox.h"
+#include "Logger.h"
 
 
 namespace Configuration
 {
 
-XmlStore::XmlStore( Scope _scope ) :
-	Store( Store::XmlFile, _scope )
+XmlStore::XmlStore( Scope scope, const QString &file ) :
+	Store( Store::XmlFile, scope ),
+	m_file( file )
 {
 }
 
@@ -49,14 +52,14 @@ static void loadXmlTree( Object * _obj, QDomNode & _parentNode,
 
 	while( !node.isNull() )
 	{
-		if( node.hasChildNodes() )
+		if( !node.firstChildElement().isNull() )
 		{
 			const QString subParentKey = _parentKey +
 				( _parentKey.isEmpty() ? "" : "/" ) +
 					node.nodeName();
 			loadXmlTree( _obj, node, subParentKey );
 		}
-		else if( node.isElement() )
+		else
 		{
 			_obj->setValue( node.nodeName(),
 					node.toElement().text(),
@@ -68,22 +71,13 @@ static void loadXmlTree( Object * _obj, QDomNode & _parentNode,
 
 
 
-
 void XmlStore::load( Object * _obj )
 {
 	QDomDocument doc;
-	QFile xmlFile( scope() == Global ?
-				LocalSystem::globalConfigPath() :
-				LocalSystem::personalConfigPath() );
+	QFile xmlFile( m_file.isEmpty() ? configurationFilePath() : m_file );
 	if( !xmlFile.open( QFile::ReadOnly ) || !doc.setContent( &xmlFile ) )
 	{
-		DecoratedMessageBox::information(
-			_obj->tr( "No configuration file found" ),
-			_obj->tr( "Could not open configuration file %1.\n"
-				"You will have to add at least one classroom "
-				"and computers using the classroom-manager which "
-				"you'll find inside the program in the sidebar on "
-				"the left side." ).arg( xmlFile.fileName() ) );
+		qWarning() << "Could not open" << xmlFile.fileName();
 		return;
 	}
 
@@ -96,8 +90,7 @@ void XmlStore::load( Object * _obj )
 
 static void saveXmlTree( const Object::DataMap & _dataMap,
 				QDomDocument & _doc,
-				QDomNode & _parentNode,
-				const QString & _parentKey )
+				QDomNode & _parentNode )
 {
 	for( Object::DataMap::ConstIterator it = _dataMap.begin();
 						it != _dataMap.end(); ++it )
@@ -107,12 +100,7 @@ static void saveXmlTree( const Object::DataMap & _dataMap,
 			// create a new element with current key as tagname
 			QDomNode node = _doc.createElement( it.key() );
 
-			const QString subParentKey = _parentKey +
-				( _parentKey.isEmpty() ? "" : "/" ) + it.key();
-			saveXmlTree( it.value().toMap(),
-					_doc,
-					node,
-					subParentKey );
+			saveXmlTree( it.value().toMap(), _doc, node );
 			_parentNode.appendChild( node );
 		}
 		else if( it.value().type() == QVariant::String )
@@ -133,11 +121,51 @@ void XmlStore::flush( Object * _obj )
 	QDomDocument doc( "ItalcConfigXmlStore" );
 	const Object::DataMap & data = _obj->data();
 
-	QDomElement root = doc.createElement(
-			scope() == Global ? "GlobalConfig" : "PersonalConfig" );
-	saveXmlTree( data, doc, root, QString() );
+	QDomElement root = doc.createElement( configurationNameFromScope() );
+	saveXmlTree( data, doc, root );
 	doc.appendChild( root );
+
+	QFile outfile( m_file.isEmpty() ? configurationFilePath() : m_file );
+	if( !outfile.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
+	{
+		qCritical() << "XmlStore::flush(): could not write to configuration file"
+					<< configurationFilePath();
+		return;
+	}
+
+	QString xml = "<?xml version=\"1.0\"?>\n" + doc.toString( 2 );
+	QTextStream( &outfile ) << xml;
+	qDebug() << xml;
 }
+
+
+
+
+QString XmlStore::configurationFilePath()
+{
+	QString base;
+	switch( scope() )
+	{
+		case Global:
+			base = ItalcConfiguration::defaultConfiguration().globalConfigurationPath();
+			break;
+		case Personal:
+			base = ItalcConfiguration::defaultConfiguration().personalConfigurationPath();
+			break;
+		case System:
+			base = LocalSystem::Path::systemConfigDataPath();
+			break;
+	}
+
+	base = LocalSystem::Path::expand( base );
+
+	LocalSystem::Path::ensurePathExists( base );
+
+	return QDTNS( base + QDir::separator() + configurationNameFromScope() + ".xml" );
+}
+
+
+
 
 
 }

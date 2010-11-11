@@ -1,7 +1,7 @@
 /*
- * LocalSystemICA.h - misc. platform-specific stuff
+ * KeyDirectoriesPage.h - QWizardPage for key directory selection
  *
- * Copyright (c) 2007-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,17 +22,29 @@
  *
  */
 
+#ifndef _KEY_DIRECTORIES_PAGE_H
+#define _KEY_DIRECTORIES_PAGE_H
 
-#ifndef _LOCAL_SYSTEM_ICA_H
-#define _LOCAL_SYSTEM_ICA_H
+#include <QtGui/QWizardPage>
 
-#include "LocalSystem.h"
+namespace Ui { class AccessKeyAssistant; }
 
-namespace LocalSystem
+class KeyDirectoriesPage : public QWizardPage
 {
-	void initialize( void );
+	Q_OBJECT
+public:
+	KeyDirectoriesPage();
+	virtual ~KeyDirectoriesPage()
+	{
+	}
 
-	void disableLocalInputs( bool _disabled );
-}
+	void setUi( Ui::AccessKeyAssistant *ui );
+	virtual bool isComplete() const;
+
+
+private:
+	Ui::AccessKeyAssistant *m_ui;
+
+} ;
 
 #endif

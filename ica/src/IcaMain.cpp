@@ -31,12 +31,11 @@
 #include <QtNetwork/QHostInfo>
 
 #include "WindowsService.h"
+#include "ItalcConfiguration.h"
 #include "ItalcCoreServer.h"
 #include "ItalcVncServer.h"
-#include "LocalSystemIca.h"
 #include "Logger.h"
 #include "Debug.h"
-#include "DsaKey.h"
 
 #include "AccessDialogSlave.h"
 #include "DemoClientSlave.h"
@@ -70,54 +69,6 @@ bool eventFilter( void *msg, long *result )
 
 
 
-int createKeyPair( int argc, char **argv )
-{
-	const QString roleArg = argv[2];
-	ItalcCore::UserRoles role = ItalcCore::RoleTeacher;
-	if( roleArg == "admin" )
-	{
-		role = ItalcCore::RoleAdmin;
-	}
-	else if( roleArg == "supporter" )
-	{
-		role = ItalcCore::RoleSupporter;
-	}
-	else if( roleArg == "other" )
-	{
-		role = ItalcCore::RoleOther;
-	}
-	bool customPath = argc > 3;
-	QString priv = customPath ? argv[3] :
-					LocalSystem::privateKeyPath( role );
-	QString pub = customPath ?
-					( argc > 4 ? argv[4] : priv + ".pub" )
-				:
-					LocalSystem::publicKeyPath( role );
-	printf( "\n\ncreating new key-pair ... \n" );
-	PrivateDSAKey pkey( 1024 );
-	if( !pkey.isValid() )
-	{
-		qCritical( "key generation failed!" );
-		return -1;
-	}
-	pkey.save( priv );
-	PublicDSAKey( pkey ).save( pub );
-	printf( "...done, saved key-pair in\n\n%s\n\nand\n\n%s",
-						priv.toUtf8().constData(),
-						pub.toUtf8().constData() );
-	printf( "\n\n\nFor now the file is only readable by "
-				"root and members of group root (if you\n"
-				"didn't ran this command as non-root).\n"
-				"I suggest changing the ownership of the "
-				"private key so that the file is\nreadable "
-				"by all members of a special group to which "
-				"all users belong who are\nallowed to use "
-				"iTALC.\n\n\n" );
-	return 0;
-}
-
-
-
 void initCoreApplication( QCoreApplication *app = NULL )
 {
 	const QString loc = QLocale::system().name().left( 2 );
@@ -132,12 +83,7 @@ void initCoreApplication( QCoreApplication *app = NULL )
 		app->installTranslator( tr );
 	}
 
-	LocalSystem::initialize();
-
-	if( LocalSystem::parameter( "serverport" ).toInt() > 0 )
-	{
-		ItalcCore::serverPort = LocalSystem::parameter( "serverport" ).toInt();
-	}
+	ItalcCore::serverPort = ItalcCore::config->coreServerPort();
 }
 
 
@@ -321,6 +267,8 @@ int main( int argc, char **argv )
 	mainthreadId = GetCurrentThreadId();
 #endif
 
+	ItalcCore::init();
+
 	// decide in what mode to run
 	if( argc >= 2 )
 	{
@@ -340,11 +288,7 @@ int main( int argc, char **argv )
 			}
 		}
 #endif
-		if( arg1 == "-createkeypair" )
-		{
-			return createKeyPair( argc, argv );
-		}
-		else if( arg1 == "-slave" )
+		if( arg1 == "-slave" )
 		{
 			if( argc <= 2 )
 			{
