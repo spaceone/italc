@@ -1,7 +1,8 @@
 /*
- * GlobalConfig.h - GlobalConfig class
+ * PersonalConfig.cpp - a Configuration object storing personal settings
+ *                      for the iTALC Master Application
  *
- * Copyright (c) 2009-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,30 +23,7 @@
  *
  */
 
-#ifndef _GLOBAL_CONFIG_H
-#define _GLOBAL_CONFIG_H
+#include "PersonalConfig.h"
 
-#include "Configuration/Object.h"
+FOREACH_PERSONAL_CONFIG_PROPERTY(IMPLEMENT_CONFIG_SET_PROPERTY)
 
-class GlobalConfig : public Configuration::Object
-{
-	Q_OBJECT
-public:
-	GlobalConfig( Configuration::Store::Backend _backend ) :
-		Configuration::Object( _backend,
-					Configuration::Store::Global )
-	{
-	}
-
-#define FOREACH_GLOBAL_CONFIG_PROPERTY(OP)						\
-	OP( GlobalConfig, MasterCore::globalConfig, STRING, defaultDomain, setDefaultDomain, "DefaultDomain", "Logon" );
-
-	FOREACH_GLOBAL_CONFIG_PROPERTY(DECLARE_CONFIG_PROPERTY)
-
-
-public slots:
-	void setDefaultDomain( const QString & );
-
-} ;
-
-#endif

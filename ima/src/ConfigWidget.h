@@ -26,10 +26,10 @@
 #define _CONFIG_WIDGET_H
 
 #include "SideBarWidget.h"
-#include "ui_Config.h"
 
+namespace Ui { class Config; }
 
-class ConfigWidget : public SideBarWidget, private Ui::Config
+class ConfigWidget : public SideBarWidget
 {
 	Q_OBJECT
 public:
@@ -44,6 +44,10 @@ protected slots:
 	void toggleIconOnlyToolButtons( bool _on );
 	void domainChanged( const QString & _domain );
 #endif
+
+
+private:
+	Ui::Config *ui;
 
 } ;
 

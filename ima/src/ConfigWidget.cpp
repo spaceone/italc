@@ -36,8 +36,12 @@
 #include "ToolButton.h"
 #ifdef ITALC3
 #include "MasterCore.h"
+#include "Configuration/UiMapping.h"
+#include "GlobalConfig.h"
 #include "PersonalConfig.h"
 #endif
+
+#include "ui_Config.h"
 
 
 ConfigWidget::ConfigWidget( MainWindow * _main_window, QWidget * _parent ) :
@@ -45,65 +49,19 @@ ConfigWidget::ConfigWidget( MainWindow * _main_window, QWidget * _parent ) :
 			tr( "Your iTALC-configuration" ),
 			tr( "In this workspace you can customize iTALC to "
 				"fit your needs." ),
-			_main_window, _parent )
+			_main_window, _parent ),
+	ui( new Ui::Config )
 {
-	setupUi( contentParent() );
+	ui->setupUi( contentParent() );
 
 #ifdef ITALC3
 
-#define LOAD_AND_CONNECT_PROPERTY(property,type,widget,setvalue,signal,slot) \
-		widget->setvalue( MasterCore::personalConfig->property() );  \
-		connect( widget, SIGNAL(signal(type)),                       \
-			MasterCore::personalConfig, SLOT(slot(type)) );
+	FOREACH_PERSONAL_CONFIG_PROPERTY(INIT_WIDGET_FROM_PROPERTY)
+	FOREACH_PERSONAL_CONFIG_PROPERTY(CONNECT_WIDGET_TO_PROPERTY)
 
-	LOAD_AND_CONNECT_PROPERTY(clientUpdateInterval,
-					int,
-					updateIntervalSB,
-					setValue,
-					valueChanged,
-					setClientUpdateInterval);
+	FOREACH_GLOBAL_CONFIG_PROPERTY(INIT_WIDGET_FROM_PROPERTY)
+	FOREACH_GLOBAL_CONFIG_PROPERTY(CONNECT_WIDGET_TO_PROPERTY)
 
-	LOAD_AND_CONNECT_PROPERTY(demoQuality,
-					int,
-					demoQualityCB,
-					setCurrentIndex,
-					activated,
-					setDemoQuality);
-
-	LOAD_AND_CONNECT_PROPERTY(defaultRole,
-					int,
-					roleCB,
-					setCurrentIndex,
-					activated,
-					setDefaultRole);
-
-	LOAD_AND_CONNECT_PROPERTY(defaultDomain,
-					const QString &,
-					domainEdit,
-					setText,
-					textChanged,
-					setDefaultDomain);
-
-	LOAD_AND_CONNECT_PROPERTY(clientDoubleClickAction,
-					int,
-					clientDoubleClickActionCB,
-					setCurrentIndex,
-					activated,
-					setClientDoubleClickAction);
-
-	LOAD_AND_CONNECT_PROPERTY(toolButtonIconOnlyMode,
-					bool,
-					iconOnlyToolButtons,
-					setChecked,
-					toggled,
-					setToolButtonIconOnlyMode);
-
-	LOAD_AND_CONNECT_PROPERTY(noToolTips,
-					bool,
-					balloonToolTips,
-					setChecked,
-					toggled,
-					setNoToolTips);
 #else
 	connect( updateIntervalSB, SIGNAL( valueChanged( int ) ),
 				mainWindow()->getClassroomManager(),

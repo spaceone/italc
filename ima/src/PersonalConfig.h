@@ -1,7 +1,7 @@
 /*
  * PersonalConfig.h - PersonalConfig class
  *
- * Copyright (c) 2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2009-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -29,6 +29,7 @@
 
 class PersonalConfig : public Configuration::Object
 {
+	Q_OBJECT
 public:
 	PersonalConfig( Configuration::Store::Backend _backend ) :
 		Configuration::Object( _backend,
@@ -36,34 +37,23 @@ public:
 	{
 	}
 
-	MAP_CONFIG_INT_PROPERTY( demoQuality,
-					setDemoQuality,
-					"DemoQuality",
-					"Behaviour" );
-	MAP_CONFIG_INT_PROPERTY( clientUpdateInterval,
-					setClientUpdateInterval,
-					"ClientUpdateInterval",
-					"Behaviour" );
-	MAP_CONFIG_INT_PROPERTY( clientDoubleClickAction,
-					setClientDoubleClickAction,
-					"ClientDoubleClickAction",
-					"Behaviour" );
-	MAP_CONFIG_INT_PROPERTY( defaultRole,
-					setDefaultRole,
-					"DefaultRole",
-					"Authentication" );
-	MAP_CONFIG_INT_PROPERTY( toolButtonIconOnlyMode,
-					setToolButtonIconOnlyMode,
-					"ToolButtonIconOnlyMode",
-					"Interface" );
-	MAP_CONFIG_INT_PROPERTY( noToolTips,
-					setNoToolTips,
-					"NoToolTips",
-					"Interface" );
-	MAP_CONFIG_PROPERTY( defaultDomain,
-					setDefaultDomain,
-					"DefaultDomain",
-					"Logon" );
+#define FOREACH_PERSONAL_CONFIG_PROPERTY(OP)						\
+	OP( PersonalConfig, MasterCore::personalConfig, INT, clientUpdateInterval, setClientUpdateInterval, "ClientUpdateInterval", "Behaviour" );	\
+	OP( PersonalConfig, MasterCore::personalConfig, INT, clientDoubleClickAction, setClientDoubleClickAction, "ClientDoubleClickAction", "Behaviour" );	\
+	OP( PersonalConfig, MasterCore::personalConfig, INT, defaultRole, setDefaultRole, "DefaultRole", "Authentication" );	\
+	OP( PersonalConfig, MasterCore::personalConfig, INT, toolButtonIconOnlyMode, setToolButtonIconOnlyMode, "ToolButtonIconOnlyMode", "Interface" );	\
+	OP( PersonalConfig, MasterCore::personalConfig, INT, noToolTips, setNoToolTips, "NoToolTips", "Interface" );	\
+
+	FOREACH_PERSONAL_CONFIG_PROPERTY(DECLARE_CONFIG_PROPERTY)
+
+
+public slots:
+	void setClientUpdateInterval( int );
+	void setClientDoubleClickAction( int );
+	void setDefaultRole( int );
+	void setToolButtonIconOnlyMode( int );
+	void setNoToolTips( int );
+
 } ;
 
 #endif
