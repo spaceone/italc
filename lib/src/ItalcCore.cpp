@@ -24,32 +24,43 @@
 
 #include <italcconfig.h>
 
-#include <QtCore/QCoreApplication>
+#ifdef ITALC_BUILD_WIN32
+#include <windows.h>
+#endif
+
 #include <QtCore/QDir>
 #include <QtCore/QFileInfo>
+#include <QtCore/QLocale>
+#include <QtCore/QTranslator>
+#include <QtGui/QApplication>
 
 #include "ItalcCore.h"
-#include "DsaKey.h"
 #include "ItalcConfiguration.h"
-#include "ItalcVncConnection.h"
+#include "ItalcRfbExt.h"
 #include "LocalSystem.h"
 #include "Logger.h"
+#include "PasswordDialog.h"
+#include "SocketDevice.h"
+
+#include <rfb/rfbclient.h>
 
 #include "minilzo.h"
 
 
 
 ItalcConfiguration *ItalcCore::config = NULL;
+AuthenticationCredentials *ItalcCore::authenticationCredentials = NULL;
 
-static PrivateDSAKey * privDSAKey = NULL;
-
-int ItalcCore::serverPort = PortOffsetIVS;
+int ItalcCore::serverPort = PortOffsetVncServer;
 ItalcCore::UserRoles ItalcCore::role = ItalcCore::RoleOther;
 
 
 void initResources()
 {
-	Q_INIT_RESOURCE(italc_core);
+	Q_INIT_RESOURCE(ItalcCore);
+#ifndef QT_TRANSLATIONS_DIR
+	Q_INIT_RESOURCE(qt_qm);
+#endif
 }
 
 
@@ -76,26 +87,43 @@ qint64 libvncClientDispatcher( char * _buf, const qint64 _len,
 
 
 
-bool ItalcCore::initAuthentication()
+static void killWisPtis()
 {
-	if( privDSAKey )
+#ifdef ITALC_BUILD_WIN32
+	int pid = -1;
+	while( ( pid = LocalSystem::Process::findProcessId( "wisptis.exe" ) ) >= 0 )
 	{
-		delete privDSAKey;
-		privDSAKey = NULL;
+		HANDLE hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
+										PROCESS_TERMINATE |
+										PROCESS_VM_READ,
+										false, pid );
+		if( !TerminateProcess( hProcess, 0 ) )
+		{
+			CloseHandle( hProcess );
+			break;
+		}
+		CloseHandle( hProcess );
 	}
 
-	const QString privKeyFile = LocalSystem::Path::privateKeyPath( role );
-	qDebug() << "Loading private key" << privKeyFile << "for role" << role;
-	if( privKeyFile.isEmpty() )
+	if( pid >= 0 )
 	{
-		return false;
+		LocalSystem::User user = LocalSystem::User::loggedOnUser();
+		while( ( pid = LocalSystem::Process::findProcessId( "wisptis.exe", -1, &user ) ) >= 0 )
+		{
+			HANDLE hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
+											PROCESS_TERMINATE |
+											PROCESS_VM_READ,
+											false, pid );
+			if( !TerminateProcess( hProcess, 0 ) )
+			{
+				CloseHandle( hProcess );
+				break;
+			}
+			CloseHandle( hProcess );
+		}
 	}
-	privDSAKey = new PrivateDSAKey( privKeyFile );
-
-	return privDSAKey->isValid();
+#endif
 }
-
-
 
 
 bool ItalcCore::init()
@@ -105,6 +133,8 @@ bool ItalcCore::init()
 		return false;
 	}
 
+	killWisPtis();
+
 	lzo_init();
 
 	QCoreApplication::setOrganizationName( "iTALC Solutions" );
@@ -112,6 +142,20 @@ bool ItalcCore::init()
 	QCoreApplication::setApplicationName( "iTALC" );
 
 	initResources();
+
+	const QString loc = QLocale::system().name();
+
+	QTranslator *tr = new QTranslator;
+	tr->load( QString( ":/resources/%1.qm" ).arg( loc ) );
+	QCoreApplication::installTranslator( tr );
+
+	QTranslator *qtTr = new QTranslator;
+#ifdef QT_TRANSLATIONS_DIR
+	qtTr->load( QString( "qt_%1.qm" ).arg( loc ), QT_TRANSLATIONS_DIR );
+#else
+	qtTr->load( QString( ":/qt_%1.qm" ).arg( loc ) );
+#endif
+	QCoreApplication::installTranslator( qtTr );
 
 	ItalcConfiguration dc = ItalcConfiguration::defaultConfiguration();
 	config = new ItalcConfiguration( dc );
@@ -123,13 +167,69 @@ bool ItalcCore::init()
 
 
 
+bool ItalcCore::initAuthentication( int credentialTypes )
+{
+	if( authenticationCredentials )
+	{
+		delete authenticationCredentials;
+		authenticationCredentials = NULL;
+	}
+
+	authenticationCredentials = new AuthenticationCredentials;
+
+	bool success = true;
+
+	if( credentialTypes & AuthenticationCredentials::UserLogon &&
+			config->isLogonAuthenticationEnabled() )
+	{
+		if( QApplication::type() != QApplication::Tty )
+		{
+			PasswordDialog dlg( QApplication::activeWindow() );
+			if( dlg.exec() )
+			{
+				authenticationCredentials->setLogonCredentials(
+											dlg.username(), dlg.password() );
+				success &= true;
+			}
+			else
+			{
+				success = false;
+			}
+		}
+		else
+		{
+			success = false;
+		}
+	}
+
+	if( credentialTypes & AuthenticationCredentials::PrivateKey &&
+			config->isKeyAuthenticationEnabled() )
+	{
+		const QString privKeyFile = LocalSystem::Path::privateKeyPath( ItalcCore::role );
+		qDebug() << "Loading private key" << privKeyFile << "for role" << ItalcCore::role;
+		if( authenticationCredentials->loadPrivateKey( privKeyFile ) )
+		{
+			success &= true;
+		}
+		else
+		{
+			success = false;
+		}
+	}
+
+	return success;
+}
+
+
+
+
 void ItalcCore::destroy()
 {
+	delete authenticationCredentials;
+	authenticationCredentials = NULL;
+
 	delete config;
 	config = NULL;
-
-	delete privDSAKey;
-	privDSAKey = NULL;
 }
 
 
@@ -153,64 +253,32 @@ QString ItalcCore::userRoleName( UserRole role )
 
 
 
-void handleSecTypeItalc( rfbClient *client )
+namespace ItalcCore
 {
-	SocketDevice socketDev( libvncClientDispatcher, client );
 
-	// read list of supported authentication types
-	QMap<QString, QVariant> supportedAuthTypes = socketDev.read().toMap();
 
-	int chosenAuthType = ItalcAuthDSA;
-	if( !supportedAuthTypes.isEmpty() )
-	{
-		chosenAuthType = supportedAuthTypes.values().first().toInt();
+bool Msg::send()
+{
+	QDataStream d( m_socketDevice );
+	d << (uint8_t) rfbItalcCoreRequest;
+	d << m_cmd;
+	d << m_args;
 
-		// look whether the ItalcVncConnection recommends a specific
-		// authentication type (e.g. ItalcAuthHostBased when running as
-		// demo client)
-		ItalcVncConnection *t = (ItalcVncConnection *)
-										rfbClientGetClientData( client, 0 );
-
-		if( t != NULL )
-		{
-			foreach( const QVariant &v, supportedAuthTypes )
-			{
-				if( t->italcAuthType() == v.toInt() )
-				{
-					chosenAuthType = v.toInt();
-				}
-			}
-		}
-	}
-
-	socketDev.write( QVariant( chosenAuthType ) );
-
-	if( chosenAuthType == ItalcAuthDSA )
-	{
-		QByteArray chall = socketDev.read().toByteArray();
-		socketDev.write( QVariant( (int) ItalcCore::role ) );
-		if( !privDSAKey )
-		{
-			ItalcCore::initAuthentication();
-		}
-		socketDev.write( privDSAKey->sign( chall ) );
-	}
-	else if( chosenAuthType == ItalcAuthHostBased )
-	{
-		// nothing to do - we just get accepted if our IP is in the list of
-		// allowed hosts
-	}
-	else if( chosenAuthType == ItalcAuthNone )
-	{
-		// nothing to do - we just get accepted
-	}
+	return true;
 }
 
 
 
-
-namespace ItalcCore
+Msg &Msg::receive()
 {
+	QDataStream d( m_socketDevice );
+	d >> m_cmd;
+	d >> m_args;
+
+	return *this;
+}
+
+
 
 const Command GetUserInformation = "GetUserInformation";
 const Command UserInformation = "UserInformation";

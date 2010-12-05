@@ -25,12 +25,21 @@
  *
  */
 
+#include "AuthenticationCredentials.h"
+#include "DsaKey.h"
+#include "ItalcConfiguration.h"
 #include "ItalcVncConnection.h"
+#include "LocalSystem.h"
 #include "Logger.h"
+#include "SocketDevice.h"
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QTime>
+
+#include <rfb/dh.h>
+
+extern "C" void rfbClientEncryptBytes2( unsigned char *where, const int length, unsigned char *key );
 
 
 static QString outputErrorMessageString;
@@ -40,7 +49,7 @@ static QString outputErrorMessageString;
 class KeyClientEvent : public ClientEvent
 {
 public:
-	KeyClientEvent( int key, int pressed ) :
+	KeyClientEvent( unsigned int key, bool pressed ) :
 		m_key( key ),
 		m_pressed( pressed )
 	{
@@ -52,8 +61,8 @@ public:
 	}
 
 private:
-	int m_key;
-	int m_pressed;
+	unsigned int m_key;
+	bool m_pressed;
 } ;
 
 
@@ -85,7 +94,7 @@ class ClientCutEvent : public ClientEvent
 {
 public:
 	ClientCutEvent( char *text ) :
-	    m_text( text )
+		m_text( text )
 	{
 	}
 
@@ -151,8 +160,19 @@ rfbBool ItalcVncConnection::hookNewClient( rfbClient *cl )
 			cl->appData.qualityLevel = 5;
 			cl->appData.enableJPEG = true;
 			break;
+		case DemoServerQuality:
+			cl->appData.encodingsString = "copyrect corre rre raw";
+			//cl->appData.useRemoteCursor = true;
+			break;
+		case DemoClientQuality:
+			//cl->appData.useRemoteCursor = true;
+			cl->appData.encodingsString = "tight ultra copyrect "
+									"hextile zlib corre rre raw";
+			cl->appData.compressLevel = 9;
+			cl->appData.qualityLevel = 9;
+			cl->appData.enableJPEG = true;
+			break;
 		default:
-		case DemoQuality:
 			cl->appData.encodingsString = "zrle ultra copyrect "
 							"hextile zlib corre rre raw";
 			break;
@@ -176,13 +196,53 @@ void ItalcVncConnection::hookUpdateFB( rfbClient *cl, int x, int y, int w, int h
 		return;
 	}
 
-	ItalcVncConnection * t = (ItalcVncConnection *)
-					rfbClientGetClientData( cl, 0 );
+	ItalcVncConnection * t = (ItalcVncConnection *) rfbClientGetClientData( cl, 0 );
+
+	if( t->quality() == DemoServerQuality )
+	{
+		// if we're providing data for demo server, perform a simple
+		// color-reduction for better compression-results
+		for( int ry = y; ry < y+h; ++ry )
+		{
+			QRgb *data = ( (QRgb *) img.scanLine( ry ) );
+			for( int rx = x; rx < x+w; ++rx )
+			{
+				data[rx] &= 0xfcfcfc;
+			}
+		}
+	}
+
 	t->setImage( img );
-	t->m_scaledScreenNeedsUpdate = true;
 	t->m_framebufferInitialized = true;
-	t->emitUpdated( x, y, w, h );
+	t->imageUpdated( x, y, w, h );
 }
+
+
+
+
+void ItalcVncConnection::hookFinishFrameBufferUpdate( rfbClient *cl )
+{
+	ItalcVncConnection *t = (ItalcVncConnection *)
+					rfbClientGetClientData( cl, 0 );
+	t->m_scaledScreenNeedsUpdate = true;
+
+	t->framebufferUpdateComplete();
+}
+
+
+
+
+rfbBool ItalcVncConnection::hookHandleCursorPos( rfbClient *cl, int x, int y )
+{
+	ItalcVncConnection * t = (ItalcVncConnection *) rfbClientGetClientData( cl, 0 );
+	if( t )
+	{
+		t->cursorPosChanged( x, y );
+	}
+
+	return true;
+}
+
 
 
 
@@ -204,20 +264,20 @@ void ItalcVncConnection::hookCursorShape( rfbClient *cl, int xh, int yh,
 
 	ItalcVncConnection * t = (ItalcVncConnection *)
 					rfbClientGetClientData( cl, 0 );
-	t->emitCursorShapeUpdated( cursorShape, xh, yh );
+	t->cursorShapeUpdated( cursorShape, xh, yh );
 }
 
 
 
 void ItalcVncConnection::hookCutText( rfbClient *cl, const char *text,
-								int textlen )
+										int textlen )
 {
 	QString cutText = QString::fromUtf8( text, textlen );
 	if( !cutText.isEmpty() )
 	{
-	        ItalcVncConnection * t = (ItalcVncConnection *)
-					rfbClientGetClientData( cl, 0);
-		t->emitGotCut( cutText );
+		ItalcVncConnection *t = (ItalcVncConnection *)
+										rfbClientGetClientData( cl, 0 );
+		t->gotCut( cutText );
 	}
 }
 
@@ -240,7 +300,7 @@ void ItalcVncConnection::hookOutputHandler( const char *format, ... )
 	if( ( message.contains( "Couldn't convert " ) ) ||
 		( message.contains( "Unable to connect to VNC server" ) ) )
 	{
-		outputErrorMessageString = tr( "Server not found." );
+		outputErrorMessageString = "Server not found.";
 	}
 
 	if( ( message.contains( "VNC connection failed: Authentication failed, "
@@ -272,8 +332,8 @@ ItalcVncConnection::ItalcVncConnection( QObject *parent ) :
 	m_framebufferInitialized( false ),
 	m_cl( NULL ),
 	m_italcAuthType( ItalcAuthDSA ),
-	m_quality( DemoQuality ),
-	m_port( PortOffsetIVS ),
+	m_quality( DemoClientQuality ),
+	m_port( PortOffsetVncServer ),
 	m_framebufferUpdateInterval( 0 ),
 	m_image(),
 	m_scaledScreenNeedsUpdate( false ),
@@ -401,7 +461,7 @@ void ItalcVncConnection::setImage( const QImage & img )
 
 
 
-const QImage ItalcVncConnection::image( int x, int y, int w, int h )
+const QImage ItalcVncConnection::image( int x, int y, int w, int h ) const
 {
 	QReadLocker locker( &m_imgLock );
 
@@ -425,49 +485,26 @@ void ItalcVncConnection::setFramebufferUpdateInterval( int interval )
 
 void ItalcVncConnection::rescaleScreen()
 {
+	if( m_scaledSize.isNull() )
+	{
+		return;
+	}
+
+	if( m_scaledScreen.isNull() || m_scaledScreen.size() != m_scaledSize )
+	{
+		m_scaledScreen = QImage( m_scaledSize, QImage::Format_RGB32 );
+		m_scaledScreen.fill( Qt::black );
+	}
+
 	if( m_scaledScreenNeedsUpdate )
 	{
-		if( m_scaledScreen.size() != m_scaledSize )
-		{
-			m_scaledScreen = QImage( m_scaledSize,
-							QImage::Format_RGB32 );
-		}
 		QReadLocker locker( &m_imgLock );
 		if( m_image.size().isValid() )
 		{
+			m_scaledScreenNeedsUpdate = false;
 			m_image.scaleTo( m_scaledScreen );
 		}
-		else
-		{
-			m_scaledScreen.fill( Qt::black );
-		}
-		m_scaledScreenNeedsUpdate = false;
 	}
-}
-
-
-
-
-void ItalcVncConnection::emitUpdated( int x, int y, int w, int h )
-{
-	emit imageUpdated( x, y, w, h );
-}
-
-
-
-
-void ItalcVncConnection::emitCursorShapeUpdated( const QImage &cursorShape,
-														int xh, int yh )
-{
-	emit cursorShapeUpdated( cursorShape, xh, yh );
-}
-
-
-
-
-void ItalcVncConnection::emitGotCut( const QString &text )
-{
-	emit gotCut( text );
 }
 
 
@@ -499,6 +536,8 @@ void ItalcVncConnection::doConnection()
 		m_cl->MallocFrameBuffer = hookNewClient;
 		m_cl->canHandleNewFBSize = true;
 		m_cl->GotFrameBufferUpdate = hookUpdateFB;
+		m_cl->FinishedFrameBufferUpdate = hookFinishFrameBufferUpdate;
+		m_cl->HandleCursorPos = hookHandleCursorPos;
 		m_cl->GotCursorShape = hookCursorShape;
 		m_cl->GotXCutText = hookCutText;
 		rfbClientSetClientData( m_cl, 0, this );
@@ -507,13 +546,13 @@ void ItalcVncConnection::doConnection()
 
 		if( m_port < 0 ) // port is invalid or empty...
 		{
-			m_port = PortOffsetIVS;
+			m_port = PortOffsetVncServer;
 		}
 
 		if( m_port >= 0 && m_port < 100 )
 		{
 			 // the user most likely used the short form (e.g. :1)
-			m_port += PortOffsetIVS;
+			m_port += PortOffsetVncServer;
 		}
 
 		free( m_cl->serverHost );
@@ -605,7 +644,7 @@ void ItalcVncConnection::doConnection()
 		}
 		else
 		{
-			// work around a bug in UltraVNC on Win7 where it does not handle
+		/*	// work around a bug in UltraVNC on Win7 where it does not handle
 			// incremental updates correctly
 			int msecs = lastFullUpdate.msecsTo( QTime::currentTime() );
 			if( ( m_framebufferUpdateInterval > 0 &&
@@ -616,7 +655,7 @@ void ItalcVncConnection::doConnection()
 						framebufferSize().width(), framebufferSize().height(),
 						false );
 				lastFullUpdate = QTime::currentTime();
-			}
+			}*/
 		}
 
 		m_mutex.lock();
@@ -660,7 +699,7 @@ void ItalcVncConnection::doConnection()
 void ItalcVncConnection::enqueueEvent( ClientEvent *e )
 {
 	QMutexLocker lock( &m_mutex );
-	if( m_stopped )
+	if( m_state != Connected )
 	{
 		return;
 	}
@@ -679,7 +718,7 @@ void ItalcVncConnection::mouseEvent( int x, int y, int buttonMask )
 
 
 
-void ItalcVncConnection::keyEvent( int key, bool pressed )
+void ItalcVncConnection::keyEvent( unsigned int key, bool pressed )
 {
 	enqueueEvent( new KeyClientEvent( key, pressed ) );
 }
@@ -690,6 +729,140 @@ void ItalcVncConnection::keyEvent( int key, bool pressed )
 void ItalcVncConnection::clientCut( const QString &text )
 {
 	enqueueEvent( new ClientCutEvent( strdup( text.toUtf8() ) ) );
+}
+
+
+
+
+void ItalcVncConnection::handleSecTypeItalc( rfbClient *client )
+{
+	SocketDevice socketDev( libvncClientDispatcher, client );
+
+	// read list of supported authentication types
+	QMap<QString, QVariant> supportedAuthTypes = socketDev.read().toMap();
+
+	int chosenAuthType = ItalcAuthCommonSecret;
+	if( !supportedAuthTypes.isEmpty() )
+	{
+		chosenAuthType = supportedAuthTypes.values().first().toInt();
+
+		// look whether the ItalcVncConnection recommends a specific
+		// authentication type (e.g. ItalcAuthHostBased when running as
+		// demo client)
+		ItalcVncConnection *t = (ItalcVncConnection *)
+										rfbClientGetClientData( client, 0 );
+
+		if( t != NULL )
+		{
+			foreach( const QVariant &v, supportedAuthTypes )
+			{
+				if( t->italcAuthType() == v.toInt() )
+				{
+					chosenAuthType = v.toInt();
+				}
+			}
+		}
+	}
+
+	socketDev.write( QVariant( chosenAuthType ) );
+	// send username which is used when displaying an access confirm dialog
+	if( ItalcCore::authenticationCredentials->hasCredentials(
+									AuthenticationCredentials::UserLogon ) )
+	{
+		socketDev.write( ItalcCore::authenticationCredentials->logonUsername() );
+	}
+	else
+	{
+		socketDev.write( LocalSystem::User::loggedOnUser().name() );
+	}
+
+	if( chosenAuthType == ItalcAuthDSA )
+	{
+		if( ItalcCore::authenticationCredentials->hasCredentials(
+				AuthenticationCredentials::PrivateKey ) )
+		{
+			QByteArray chall = socketDev.read().toByteArray();
+			socketDev.write( QVariant( (int) ItalcCore::role ) );
+			socketDev.write( ItalcCore::authenticationCredentials->
+													privateKey()->sign( chall ) );
+		}
+	}
+	else if( chosenAuthType == ItalcAuthHostBased )
+	{
+		// nothing to do - we just get accepted if our IP is in the list of
+		// allowed hosts
+	}
+	else if( chosenAuthType == ItalcAuthCommonSecret )
+	{
+		socketDev.write( ItalcCore::authenticationCredentials->commonSecret() );
+	}
+	else if( chosenAuthType == ItalcAuthNone )
+	{
+		// nothing to do - we just get accepted
+	}
+}
+
+
+
+
+void ItalcVncConnection::handleMsLogonIIAuth( rfbClient *client )
+{
+	char gen[8], mod[8], pub[8], resp[8];
+	char user[256], passwd[64];
+	unsigned char key[8];
+
+	ReadFromRFBServer(client, gen, sizeof(gen));
+	ReadFromRFBServer(client, mod, sizeof(mod));
+	ReadFromRFBServer(client, resp, sizeof(resp));
+
+	DiffieHellman dh(bytesToInt64(gen), bytesToInt64(mod));
+	int64ToBytes(dh.createInterKey(), pub);
+
+	WriteToRFBServer(client, pub, sizeof(pub));
+
+	int64ToBytes(dh.createEncryptionKey(bytesToInt64(resp)), (char*) key);
+
+	strcpy( user, ItalcCore::authenticationCredentials->
+										logonUsername().toUtf8().constData() );
+	strcpy( passwd, ItalcCore::authenticationCredentials->
+										logonPassword().toUtf8().constData() );
+
+	rfbClientEncryptBytes2((unsigned char*) user, sizeof(user), key);
+	rfbClientEncryptBytes2((unsigned char*) passwd, sizeof(passwd), key);
+
+	WriteToRFBServer(client, user, sizeof(user));
+	WriteToRFBServer(client, passwd, sizeof(passwd));
+}
+
+
+
+
+
+// global auth handlers used in modified libvncclient
+
+int isLogonAuthenticationEnabled( rfbClient *client )
+{
+	if( ItalcCore::config->isLogonAuthenticationEnabled() &&
+			ItalcCore::authenticationCredentials->hasCredentials(
+										AuthenticationCredentials::UserLogon ) )
+	{
+
+		return 1;
+	}
+
+	return 0;
+}
+
+
+void handleSecTypeItalc( rfbClient *client )
+{
+	ItalcVncConnection::handleSecTypeItalc( client );
+}
+
+
+void handleMsLogonIIAuth( rfbClient *client )
+{
+	ItalcVncConnection::handleMsLogonIIAuth( client );
 }
 
 

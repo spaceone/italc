@@ -6,6 +6,28 @@ QT4_ADD_RESOURCES(ica_RCC_out ${QRC_FILE})
 QT4_TRANSLATIONS_FOR_QRC(${QRC_FILE} ${ica_SOURCES} ${ica_INCLUDES})
 ADD_DEFINITIONS(-DLIBVNCSERVER_PACKAGE_STRING="iTALC ${VERSION}")
 
+# build JavaViewer
+SET(VNCVIEWER_JAR ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer/VncViewer.jar)
+
+IF(JAVA_COMPILE AND JAVA_ARCHIVE)
+
+	ADD_CUSTOM_COMMAND(OUTPUT ${VNCVIEWER_JAR}
+						COMMAND ${JAVA_COMPILE} -O2 -d ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/*.java
+						COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer && ${JAVA_ARCHIVE} cfm ${VNCVIEWER_JAR} ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/MANIFEST.MF OptionsFrame.class VncCanvas.class ButtonPanel.class FTPFrame.class SessionRecorder.class DH.class VncViewer.class DesCipher.class RecordingFrame.class FTPFrame$$StrComp.class RfbProto.class ClipboardFrame.class AuthPanel.class
+						DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/* )
+	INSTALL(FILES ${VNCVIEWER_JAR} ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/index.vnc DESTINATION ${CMAKE_INSTALL_PREFIX}/share/italc/JavaViewer)
+
+ELSE()
+
+	ADD_CUSTOM_COMMAND(OUTPUT ${VNCVIEWER_JAR} COMMAND touch ${VNCVIEWER_JAR})
+
+ENDIF()
+
+ADD_CUSTOM_TARGET(JavaViewer DEPENDS ${VNCVIEWER_JAR})
+
+# end build JavaViewer
+
+
 SET(x11vnc_SOURCES
 		${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver/auth.c
 		${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver/cargs.c
@@ -40,6 +62,8 @@ ADD_DEFINITIONS(-DVNCSHARED -DFOREVER -DNOREPEAT=0 -DNOPW=1 -DREMOTE_CONTROL=0 -
 
 IF(ITALC_BUILD_LINUX)
 
+	ADD_SUBDIRECTORY(helpers)
+
 	SET(platform_SOURCES
 		${CMAKE_CURRENT_SOURCE_DIR}/x11/x11vnc/appshare.c)
 
@@ -49,10 +73,13 @@ ENDIF(ITALC_BUILD_LINUX)
 
 IF(ITALC_BUILD_WIN32)
 
+	ADD_SUBDIRECTORY(win32)
+
 	ADD_DEFINITIONS(-DX11VNC_IPV6=0 -DPTW32_STATIC_LIB -DTLS=__thread -DX11VNC_USLEEP)
-	INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc ${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/omnithread ${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc ${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncclient)
+	INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/win32 ${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc ${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/omnithread ${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc ${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncclient)
 	SET(platform_SOURCES
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/ultravnc.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/win32/ultravnc-italc.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/HideDesktop.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/rfbRegion_win32.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vistahook.cpp
@@ -64,7 +91,6 @@ IF(ITALC_BUILD_WIN32)
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncserver.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncabout.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/black_layered.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/TextChat.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncsetauth.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncacceptdialog.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/rfbUpdateTracker.cpp
@@ -111,31 +137,17 @@ IF(ITALC_BUILD_WIN32)
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/CpuUsage.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/getinfo.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/Dtwinver.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/httpconnect.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/omnithread/nt.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/Xregion/Region.c
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/DSMPlugin/DSMPlugin.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/common/clipboard.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/common/win32_helpers.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/rdr/ZlibOutStream.cxx
-		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/rdr/ZlibInStream.cxx
-		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/dh.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/win32/common/Clipboard.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/win32/common/win32_helpers.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/win32/rdr/ZlibOutStream.cxx
+		${CMAKE_CURRENT_SOURCE_DIR}/win32/rdr/ZlibInStream.cxx
 		)
 
-	SET(VH_WINRC "${CMAKE_CURRENT_BINARY_DIR}/vnchooksrc.obj")
-	ADD_CUSTOM_COMMAND(OUTPUT ${VH_WINRC}
-						COMMAND ${WINDRES}
-							-I${CMAKE_CURRENT_SOURCE_DIR}
-							-o${VH_WINRC}
-							-i${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/vnchooks/vnchooks.rc)
-
-	ADD_LIBRARY(vnchooks MODULE
-					${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/vnchooks/VNCHooks.cpp
-					${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/vnchooks/SharedData.cpp
-					${VH_WINRC})
-	SET_TARGET_PROPERTIES(vnchooks PROPERTIES PREFIX "")
-
 	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-write-strings -fexceptions")
-	LINK_LIBRARIES(-luserenv -lole32 -lversion -lgdi32 -limm32)
+	LINK_LIBRARIES(-luserenv -lole32 -lversion -lgdi32 -limm32 -lwinmm)
 
 	ADD_DEFINITIONS(-DULTRAVNC_ITALC_SUPPORT -DLIBVNCSERVER_NEED_INADDR_T)
 
@@ -145,9 +157,13 @@ IF(ITALC_BUILD_WIN32)
 							-I${CMAKE_CURRENT_SOURCE_DIR}
 							-o${WINRC}
 							-i${CMAKE_CURRENT_BINARY_DIR}/ica.rc
-						DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ica.rc)
+						DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ica.rc ${VNCVIEWER_JAR})
 
 ENDIF(ITALC_BUILD_WIN32)
+
+IF(ITALC_BUILD_WIN64)
+	ADD_DEFINITIONS(-D_X64)
+ENDIF(ITALC_BUILD_WIN64)
 
 
 ADD_DEFINITIONS(-DBUILD_ICA)
@@ -156,6 +172,8 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src 
 LINK_LIBRARIES(ItalcCore -lpthread)
 
 ADD_EXECUTABLE(ica ${ica_SOURCES} ${ica_INCLUDES} ${ica_MOC_out} ${ica_RCC_out} ${x11vnc_SOURCES} ${platform_SOURCES} ${WINRC})
+
+ADD_DEPENDENCIES(ica JavaViewer)
 
 INSTALL(TARGETS ica RUNTIME DESTINATION bin)
 

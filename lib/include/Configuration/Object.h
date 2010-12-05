@@ -40,8 +40,10 @@ public:
 
 	Object( Store::Backend backend, Store::Scope scope );
 	Object( Store *store );
+	Object( const Object & );
 	~Object();
 
+	Object &operator=( const Object &ref );
 	Object &operator+=( const Object &ref );
 
 	QString value( const QString & _key,
@@ -50,6 +52,10 @@ public:
 	void setValue( const QString & _key,
 			const QString & _value,
 			const QString & _parentKey = QString() );
+
+	void removeValue( const QString &key, const QString &parentKey );
+
+	void addSubObject( Object *obj, const QString &parentKey );
 
 	void reloadFromStore()
 	{
@@ -65,6 +71,11 @@ public:
 		{
 			m_store->flush( this );
 		}
+	}
+
+	bool isStoreWritable() const
+	{
+		return m_store->isWritable();
 	}
 
 	void clear()
@@ -83,10 +94,6 @@ signals:
 
 
 private:
-	static DataMap setValueRecursive( DataMap data,
-										QStringList subLevels,
-										const QString &key,
-										const QString &value );
 	Configuration::Store *m_store;
 	bool m_customStore;
 	DataMap m_data;
@@ -99,6 +106,13 @@ private:
 		inline QString get() const					\
 		{											\
 			return value( key, parentKey );			\
+		}
+
+#define DECLARE_CONFIG_STRINGLIST_PROPERTY(get,key,parentKey)\
+	public:													\
+		inline QStringList get() const						\
+		{													\
+			return value( key, parentKey ).split( ',' );	\
 		}
 
 #define DECLARE_CONFIG_INT_PROPERTY(get,key,parentKey)	\
@@ -124,6 +138,12 @@ private:
 		void className::set( const QString &val )						\
 		{																\
 			setValue( key, val,	parentKey );							\
+		}
+
+#define IMPLEMENT_CONFIG_SET_STRINGLIST_PROPERTY(className,set,key,parentKey)\
+		void className::set( const QStringList &val )					\
+		{																\
+			setValue( key, val.join( "," ),	parentKey );				\
 		}
 
 #define IMPLEMENT_CONFIG_SET_INT_PROPERTY(className,set,key,parentKey)	\

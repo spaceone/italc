@@ -139,6 +139,7 @@ typedef void (*rfbDisplayHookPtr)(struct _rfbClientRec* cl);
 typedef void (*rfbDisplayFinishedHookPtr)(struct _rfbClientRec* cl, int result);
 /* support the capability to view the caps/num/scroll states of the X server */
 typedef int  (*rfbGetKeyboardLedStateHookPtr)(struct _rfbScreenInfo* screen);
+typedef rfbBool (*rfbXvpHookPtr)(struct _rfbClientRec* cl, uint8_t, uint8_t);
 /* If x==1 and y==1 then set the whole display
  * else find the window underneath x and y and set the framebuffer to the dimensions
  * of that window
@@ -169,7 +170,7 @@ typedef struct {
  */
 
 typedef struct _rfbSecurity {
-	uint8_t type;
+	uint32_t type;
 	void (*handler)(struct _rfbClientRec* cl);
 	struct _rfbSecurity* next;
 } rfbSecurityHandler;
@@ -356,6 +357,8 @@ typedef struct _rfbScreenInfo
 
     /* displayFinishedHook is called just after a frame buffer update */
     rfbDisplayFinishedHookPtr displayFinishedHook;
+    /* xvpHook is called to handle an xvp client message */
+    rfbXvpHookPtr xvpHook;
 } rfbScreenInfo, *rfbScreenInfoPtr;
 
 

@@ -49,7 +49,6 @@
 #include "vncdesktopthread.h"
 #include "common/win32_helpers.h"
 #include <algorithm>
-extern CDPI g_dpi;
 
 
 
@@ -420,6 +419,9 @@ vncDesktop::vncDesktop()
 	rgnpump.clear();
 	lock_region_add=false;
 	InitWindowThreadh=NULL;
+	old_Blockinput=2;
+	old_Blockinput1=2;
+	old_Blockinput2=2;
 }
 
 vncDesktop::~vncDesktop()
@@ -736,7 +738,8 @@ vncDesktop::Shutdown()
 BOOL
 vncDesktop::InitDesktop()
 {
-	if (vncService::InputDesktopSelected())
+	int result=vncService::InputDesktopSelected();
+	if (result==1 || result==2)
 		return TRUE;
 	vnclog.Print(LL_INTINFO, VNCLOG("InitDesktop...\n"));
 	return vncService::SelectDesktop(NULL, &m_input_desktop);
@@ -1399,6 +1402,39 @@ vncDesktop::FillDisplayInfo(rfbServerInitMsg *scrinfo)
 	memcpy(scrinfo, &m_scrinfo, sz_rfbServerInitMsg);
 }
 
+
+void
+vncDesktop::WriteMessageOnScreen(char * tt,BYTE *scrBuff, UINT scrBuffSize)
+{
+	// Select the memory bitmap into the memory DC
+	RECT rect;
+	SetRect(&rect, 0,0, 300, 120);
+	COLORREF bgcol =RGB(0xff, 0x00, 0x00);
+	COLORREF oldtxtcol =SetTextColor(m_hmemdc, RGB(0,0,254));
+	COLORREF oldbgcol  =SetBkColor(  m_hmemdc, bgcol);
+	HBRUSH backgroundBrush = CreateSolidBrush(bgcol);
+
+	HBITMAP oldbitmap;
+	if ((oldbitmap = (HBITMAP) SelectObject(m_hmemdc, m_membitmap)) == NULL)
+					return;
+
+	FillRect(m_hmemdc, &rect, backgroundBrush); 
+	DrawText(m_hmemdc,tt,strlen(tt),&rect,DT_CENTER | DT_VCENTER);
+				// Select the old bitmap back into the memory DC
+	//DWORD err= GetLastError();
+
+	
+	//ExtTextOut(m_hmemdc, 0, 0, ETO_OPAQUE,&rect,tt,strlen(tt), NULL); 
+        
+
+	SetBkColor(  m_hmemdc, oldbgcol);
+	SetTextColor(m_hmemdc, oldtxtcol);
+	SelectObject(m_hmemdc, oldbitmap);
+	DeleteObject(backgroundBrush); 
+
+	CopyToBuffer(rect, scrBuff, scrBuffSize);
+}
+
 #ifndef CAPTUREBLT
 #define CAPTUREBLT  0x40000000
 #endif
@@ -1496,8 +1532,6 @@ vncDesktop::CaptureMouse(BYTE *scrBuff, UINT scrBuffSize)
 	// Get the cursor position
 	if (!GetCursorPos(&CursorPos))
 		return;
-	CursorPos.x=g_dpi.UnscaleX(CursorPos.x);
-	CursorPos.y=g_dpi.UnscaleY(CursorPos.y);
 	CursorPos.x -= m_ScreenOffsetx;
 	CursorPos.y -= m_ScreenOffsety;
 	//vnclog.Print(LL_INTINFO, VNCLOG("CursorPos %i %i\n"),CursorPos.x, CursorPos.y);
@@ -1510,54 +1544,82 @@ vncDesktop::CaptureMouse(BYTE *scrBuff, UINT scrBuffSize)
 		CursorPos.x -= m_ScreenOffsetx;
 		CursorPos.y -= m_ScreenOffsety;
 		///
+		
+		if (CursorPos.x<=m_bmrect.tl.x || CursorPos.y<=m_bmrect.tl.y || CursorPos.x>=m_bmrect.br.x || CursorPos.y>=m_bmrect.br.y) 
+		{
+			if ((m_cursorpos.tl.x<=m_bmrect.tl.x)||
+				(m_cursorpos.tl.y<=m_bmrect.tl.y)||
+				(m_cursorpos.br.x>=m_bmrect.br.x)||
+				(m_cursorpos.br.y>=m_bmrect.br.y))
+			{
+				m_cursorpos.tl.x=0;
+				m_cursorpos.tl.y=0;
+				m_cursorpos.br.x=16;
+				m_cursorpos.br.y=16;
+			}
+			//Error, cursor isn't on the visbale display.
+			if (IconInfo.hbmMask != NULL)
+					DeleteObject(IconInfo.hbmMask);
+				if (IconInfo.hbmColor != NULL)
+					DeleteObject(IconInfo.hbmColor);
+			return;
+		}
+
+		// Save the bounding rectangle
+		m_cursorpos.tl = CursorPos;
+		m_cursorpos.br = rfb::Point(GetSystemMetrics(SM_CXCURSOR),
+		GetSystemMetrics(SM_CYCURSOR)).translate(CursorPos);
+		// Clip the bounding rect to the screen
+		// Copy the mouse cursor into the screen buffer, if any of it is visible
+		m_cursorpos = m_cursorpos.intersect(m_bmrect);
+
+		if (IconInfo.hbmMask && IconInfo.hbmColor)
+			{
+					HBITMAP oldbitmap;
+					if ((oldbitmap = (HBITMAP) SelectObject(m_hmemdc, m_membitmap)) == NULL)
+							return;
+					HDC mdc1, mdc2;
+					mdc1 = CreateCompatibleDC(m_hmemdc);
+					mdc2 = CreateCompatibleDC(m_hmemdc);
+					HBITMAP oldbmp1 = (HBITMAP)SelectObject(mdc1, IconInfo.hbmMask);
+					HBITMAP oldbmp2 = (HBITMAP)SelectObject(mdc2, IconInfo.hbmColor);
+					BitBlt(m_hmemdc,m_cursorpos.tl.x, m_cursorpos.tl.y,m_cursorpos.br.x-m_cursorpos.tl.x, m_cursorpos.br.y-m_cursorpos.tl.y, mdc1, 0, 0, SRCAND);
+					BitBlt(m_hmemdc, m_cursorpos.tl.x, m_cursorpos.tl.y, m_cursorpos.br.x-m_cursorpos.tl.x, m_cursorpos.br.y-m_cursorpos.tl.y, mdc2, 0, 0, SRCINVERT);
+
+					SelectObject(m_hmemdc, oldbitmap);
+					SelectObject(mdc1, oldbmp1);
+					SelectObject(mdc2, oldbmp2);
+			}
+		else
+			{
+
+				// Select the memory bitmap into the memory DC
+				HBITMAP oldbitmap;
+				if ((oldbitmap = (HBITMAP) SelectObject(m_hmemdc, m_membitmap)) == NULL)
+					return;
+
+				// Draw the cursor
+				DrawIconEx(
+					m_hmemdc,									// handle to device context 
+					CursorPos.x, CursorPos.y,
+					m_hcursor,									// handle to icon to draw 
+					0,0,										// width of the icon 
+					0,											// index of frame in animated cursor 
+					NULL,										// handle to background brush 
+					DI_NORMAL | DI_COMPAT						// icon-drawing flags 
+					);
+
+				// Select the old bitmap back into the memory DC
+				SelectObject(m_hmemdc, oldbitmap);
+		}
+
 		if (IconInfo.hbmMask != NULL)
 			DeleteObject(IconInfo.hbmMask);
 		if (IconInfo.hbmColor != NULL)
 			DeleteObject(IconInfo.hbmColor);
 	}
-	if (CursorPos.x<=m_bmrect.tl.x || CursorPos.y<=m_bmrect.tl.y || CursorPos.x>=m_bmrect.br.x || CursorPos.y>=m_bmrect.br.y) 
-	{
-		if ((m_cursorpos.tl.x<=m_bmrect.tl.x)||
-			(m_cursorpos.tl.y<=m_bmrect.tl.y)||
-			(m_cursorpos.br.x>=m_bmrect.br.x)||
-			(m_cursorpos.br.y>=m_bmrect.br.y))
-		{
-		m_cursorpos.tl.x=0;
-		m_cursorpos.tl.y=0;
-		m_cursorpos.br.x=16;
-		m_cursorpos.br.y=16;
-		}
-		//Error, cursor isn't on the visbale display.
-		return;
-	}
 
-	// Select the memory bitmap into the memory DC
-	HBITMAP oldbitmap;
-	if ((oldbitmap = (HBITMAP) SelectObject(m_hmemdc, m_membitmap)) == NULL)
-		return;
 
-	// Draw the cursor
-	DrawIconEx(
-		m_hmemdc,									// handle to device context 
-		CursorPos.x, CursorPos.y,
-		m_hcursor,									// handle to icon to draw 
-		0,0,										// width of the icon 
-		0,											// index of frame in animated cursor 
-		NULL,										// handle to background brush 
-		DI_NORMAL | DI_COMPAT						// icon-drawing flags 
-		);
-
-	// Select the old bitmap back into the memory DC
-	SelectObject(m_hmemdc, oldbitmap);
-
-	// Save the bounding rectangle
-	m_cursorpos.tl = CursorPos;
-	m_cursorpos.br = rfb::Point(GetSystemMetrics(SM_CXCURSOR),
-		GetSystemMetrics(SM_CYCURSOR)).translate(CursorPos);
-
-	// Clip the bounding rect to the screen
-	// Copy the mouse cursor into the screen buffer, if any of it is visible
-	m_cursorpos = m_cursorpos.intersect(m_bmrect);
 	if (!m_cursorpos.is_empty()) {
 		CopyToBuffer(m_cursorpos, scrBuff, scrBuffSize);
 	}
@@ -1909,30 +1971,10 @@ void vncDesktop::SetBlankMonitor(bool enabled)
 
 // Modif rdv@2002 Dis/enable input
 void
-vncDesktop::SetDisableInput(bool enabled)
+vncDesktop::SetDisableInput()
 {
-    CARD32 state = enabled ? rfbServerState_Disabled : rfbServerState_Enabled;
-    vnclog.Print(LL_INTINFO, VNCLOG("SetDisableInput: inputs %s\n"), enabled ? "disbled" : "enabled");
-
-	//BlockInput block everything on non w2k and XP
-	//if hookdll is used, he take care of input blocking
-	if (OSversion()==1 || OSversion()==2) 
-		{
-			// added jeff
-			BOOL blocked;
-			if (pbi) 
-            {
-            blocked = block_input(enabled);
-			if(!enabled) Sleep(1000);
-			blocked = block_input(enabled);
-            }
-
-		}
-	else
-		{
-			m_server->DisableLocalInputs(enabled);
-			On_Off_hookdll=true;
-		}
+    CARD32 state;
+    state=!block_input();
     m_server->NotifyClients_StateChange(rfbServerRemoteInputsState, state);
 }
 
@@ -2270,30 +2312,56 @@ void vncDesktop::InitHookSettings()
 
 void vncDesktop::SetBlockInputState(bool newstate)
 {
+	CARD32 state;
 	if (m_server->BlankMonitorEnabled())
     {
-		if (!m_server->BlankInputsOnly()) //PGM
-	        SetBlankMonitor(newstate);
-        SetDisableInput(newstate);
-        m_bIsInputDisabledByClient = newstate;
+		if (!m_server->BlankInputsOnly()) SetBlankMonitor(newstate);	        
+		m_bIsInputDisabledByClient = newstate;
+		state=!block_input();
+		
     }
-
- CARD32 state = m_bIsInputDisabledByClient ? rfbServerState_Disabled : rfbServerState_Enabled;
  m_server->NotifyClients_StateChange(rfbServerRemoteInputsState, state);
 }
 
-bool vncDesktop::block_input(bool enabled)
+bool vncDesktop::block_input()
 {
-    bool blocked =  false;
+    int Blockinput_val;
+	BOOL returnvalue;
+	if(m_bIsInputDisabledByClient || m_server->LocalInputsDisabled())
+	{
+		Blockinput_val=true;
+	}
+	else
+	{
+		Blockinput_val=false;
+	}
 
+	#ifdef _DEBUG
+					char			szText[256];
+					sprintf(szText," blockinput %i %i %i %i\n",m_bIsInputDisabledByClient,m_server->LocalInputsDisabled(),old_Blockinput1,old_Blockinput2);
+					SetLastError(0);
+					OutputDebugString(szText);		
+	#endif
+
+	if (old_Blockinput1!=m_bIsInputDisabledByClient || old_Blockinput2!=m_server->LocalInputsDisabled())
+	{
+		CARD32 state;
+		state=!Blockinput_val;
+		m_server->NotifyClients_StateChange(rfbServerRemoteInputsState, state);
+	}
     if (pbi)
     {
-        blocked = (*pbi)(enabled) ? true : false;
-#if 0
-        if (!blocked && enabled)
-            vnclog.Print(LL_INTINFO, VNCLOG("BlockInput failed:  Last error %08X\n"), ::GetLastError());
-#endif
-    }
+        returnvalue = (*pbi)(Blockinput_val);
+		DWORD aa=GetLastError();
+		if (old_Blockinput!=Blockinput_val && aa==5)
+		{
+			PostMessage(m_hwnd, WM_HOOKCHANGE, 2, 0);
+		}
 
-    return blocked;
+    }
+	old_Blockinput1=m_bIsInputDisabledByClient;
+	old_Blockinput2=m_server->LocalInputsDisabled();
+	old_Blockinput=Blockinput_val;
+
+    return Blockinput_val;
 }

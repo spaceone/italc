@@ -29,6 +29,7 @@
 
 #include "ItalcConfiguration.h"
 #include "ItalcCore.h"
+#include "ItalcRfbExt.h"
 #include "LocalSystem.h"
 #include "Logger.h"
 
@@ -68,6 +69,8 @@ ItalcConfiguration ItalcConfiguration::defaultConfiguration()
 
 	c.setLogLevel( Logger::LogLevelDefault );
 	c.setLimittedLogFileSize( false );
+	c.setLogToStdErr( true );
+	c.setLogToWindowsEventLog( false );
 	c.setLogFileSizeLimit( -1 );
 	c.setLogFileDirectory(
 #ifdef ITALC_BUILD_WIN32
@@ -88,10 +91,13 @@ ItalcConfiguration ItalcConfiguration::defaultConfiguration()
 	c.setVncPollFullScreen( true );
 	c.setVncLowAccuracy( true );
 
+	c.setDemoServerBackend( 0 );
 	c.setDemoServerMultithreaded( true );
 
-	c.setCoreServerPort( PortOffsetIVS );
+	c.setCoreServerPort( PortOffsetVncServer );
 	c.setDemoServerPort( PortOffsetDemoServer );
+	c.setHttpServerPort( PortOffsetHttpServer );
+	c.setHttpServerEnabled( false );
 	c.setFirewallExceptionEnabled( true );
 
 	c.setGlobalConfigurationPath( QDTNS( "$APPDATA/GlobalConfig.xml" ) );
@@ -102,8 +108,13 @@ ItalcConfiguration ItalcConfiguration::defaultConfiguration()
 	c.setKeyAuthenticationEnabled( true );
 	c.setLogonAuthenticationEnabled( true );
 
+	c.setPermissionRequiredWithKeyAuthentication( false );
 	c.setPrivateKeyBaseDir( QDTNS( "$GLOBALAPPDATA/keys/private" ) );
 	c.setPublicKeyBaseDir( QDTNS( "$GLOBALAPPDATA/keys/public" ) );
+
+	c.setPermissionRequiredWithLogonAuthentication( false );
+	c.setSameUserConfirmationDisabled( false );
+	c.setLogonGroups( QStringList() );
 
 	return c;
 }

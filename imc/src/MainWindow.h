@@ -27,7 +27,7 @@
 
 #include <QtGui/QMainWindow>
 
-#include "ui_MainWindow.h"
+class QAbstractButton;
 
 namespace Ui { class MainWindow; } ;
 
@@ -48,12 +48,26 @@ private slots:
 	void startService();
 	void stopService();
 	void updateServiceControl();
+	void openLogFileDirectory();
+	void clearLogFiles();
+	void openGlobalConfig();
+	void openPersonalConfig();
+	void openSnapshotDirectory();
+	void openPublicKeyBaseDir();
+	void openPrivateKeyBaseDir();
 	void loadSettingsFromFile();
 	void saveSettingsToFile();
-	void launchAccessKeyAssistant();
+	void launchKeyFileAssistant();
+	void manageACLs();
+	void testLogonAuthentication();
+	void generateBugReportArchive();
 
 
 private:
+	virtual void closeEvent( QCloseEvent *closeEvent );
+	void serviceControlWithProgressBar( const QString &title,
+										const QString &arg );
+
 	bool isServiceRunning();
 
 	Ui::MainWindow *ui;

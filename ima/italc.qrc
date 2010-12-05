@@ -6,8 +6,6 @@
 	<file>resources/fullscreen.png</file>
 	<file>resources/quit.png</file>
         <file>resources/adjust_size.png</file>
-        <file>resources/analog.png</file>
-        <file>resources/apply.png</file>
         <file>resources/authors.png</file>
         <file>resources/auto_arrange.png</file>
         <file>resources/back.png</file>
@@ -28,21 +26,6 @@
         <file>resources/clock.png</file>
         <file>resources/config.png</file>
         <file>resources/config_48.png</file>
-        <file>resources/de.qm</file>
-        <file>resources/cs.qm</file>
-        <file>resources/it.qm</file>
-        <file>resources/fr.qm</file>
-        <file>resources/es.qm</file>
-        <file>resources/nn.qm</file>
-        <file>resources/pl.qm</file>
-        <file>resources/sl.qm</file>
-        <file>resources/sk.qm</file>
-        <file>resources/uk.qm</file>
-        <file>resources/fi.qm</file>
-        <file>resources/ru.qm</file>
-        <file>resources/pt_br.qm</file>
-        <file>resources/el.qm</file>
-        <file>resources/tr.qm</file>
         <file>resources/error.png</file>
         <file>resources/filesave.png</file>
         <file>resources/fullscreen_demo.png</file>
@@ -50,35 +33,20 @@
         <file>resources/host_unreachable.png</file>
         <file>resources/info.png</file>
         <file>resources/info_22.png</file>
-        <file>resources/isdn.png</file>
-        <file>resources/lan.png</file>
         <file>resources/license.png</file>
         <file>resources/locale.png</file>
         <file>resources/locked.png</file>
         <file>resources/logout.png</file>
-        <file>resources/modem.png</file>
         <file>resources/remotelogon.png</file>
         <file>resources/remotelogon_22.png</file>
         <file>resources/remotelogon_48.png</file>
         <file>resources/network.png</file>
         <file>resources/no_user.png</file>
-        <file>resources/ok.png</file>
         <file>resources/overview.png</file>
         <file>resources/overview_mode.png</file>
         <file>resources/power_off.png</file>
         <file>resources/power_on.png</file>
-        <file>resources/qt_ar.qm</file>
-        <file>resources/qt_cs.qm</file>
-        <file>resources/qt_de.qm</file>
-        <file>resources/qt_en.qm</file>
-        <file>resources/qt_es.qm</file>
-        <file>resources/qt_fr.qm</file>
-        <file>resources/qt_iw.qm</file>
-        <file>resources/qt_pl.qm</file>
-        <file>resources/qt_ru.qm</file>
-        <file>resources/qt_sk.qm</file>
         <file>resources/reboot.png</file>
-        <file>resources/reload.png</file>
         <file>resources/remote_control.png</file>
         <file>resources/remote_control_48.png</file>
         <file>resources/run.png</file>
@@ -96,7 +64,6 @@
         <file>resources/users.png</file>
         <file>resources/users_48.png</file>
         <file>resources/viewmag.png</file>
-        <file>resources/vpn.png</file>
         <file>resources/window_demo.png</file>
         <file>resources/logo.png</file>
         <file>resources/greenled.png</file>

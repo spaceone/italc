@@ -23,9 +23,7 @@
  */
 
 
-#include <QtCore/QLocale>
 #include <QtCore/QModelIndex>
-#include <QtCore/QTranslator>
 #include <QtGui/QApplication>
 #include <QtGui/QSplashScreen>
 
@@ -33,6 +31,7 @@
 #include "MasterCore.h"
 #endif
 #include "MainWindow.h"
+#include "ItalcConfiguration.h"
 #include "ItalcCoreConnection.h"
 #include "LocalSystem.h"
 #include "Logger.h"
@@ -75,25 +74,6 @@ int main( int argc, char * * argv )
 			"font-weight:bold; padding: 4px 32px 4px 20px; }" );
 
 	// load translations
-	QString loc =  QLocale::system().name().toLower();
-	if( loc.left( 2 ) == loc.right( 2 ) )
-	{
-		loc = loc.left( 2 );
-	}
-
-	QTranslator app_tr;
-	app_tr.load( ":/resources/" + loc + ".qm" );
-	app.installTranslator( &app_tr );
-
-	QTranslator core_tr;
-	core_tr.load( ":/resources/" + loc + "-core.qm" );
-	app.installTranslator( &core_tr );
-
-	QTranslator qt_tr;
-	qt_tr.load( ":/resources/qt_" + loc + ".qm" );
-	app.installTranslator( &qt_tr );
-
-
 	qRegisterMetaType<QModelIndex>( "QModelIndex" );
 	qRegisterMetaType<quint16>( "quint16" );
 
@@ -114,6 +94,12 @@ int main( int argc, char * * argv )
 		const QString & a = arg_it.next();
 		if( a == "-rctrl" && arg_it.hasNext() )
 		{
+			if( !ItalcCore::initAuthentication() )
+			{
+				ilog_failed( "ItalcCore::initAuthentication()" );
+				return -1;
+			}
+
 			const QString host = arg_it.next();
 			bool view_only = arg_it.hasNext() ?
 						arg_it.next().toInt()
@@ -165,13 +151,21 @@ int main( int argc, char * * argv )
 
 	MasterCore::init();
 
+/*	if( !MainWindow::initAuthentication() )
+	{
+		return -1;
+	}*/
+
 	// now create the main-window
 	MainWindow mainWindow( screen );
 
 	if( !MasterCore::localDisplay->isConnected() )
 	{
 		qCritical( "No connection to local ICA - terminating now" );
-		return -1;
+		if( ItalcCore::config->logLevel() < Logger::LogLevelDebug )
+		{
+			return -1;
+		}
 	}
 
 	// hide splash-screen as soon as main-window is shown

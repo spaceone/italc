@@ -25,13 +25,10 @@
 #ifndef _ITALC_CORE_SERVER_H
 #define _ITALC_CORE_SERVER_H
 
-#include <QtCore/QList>
 #include <QtCore/QMutex>
-#include <QtCore/QPair>
-#include <QtCore/QSignalMapper>
 #include <QtCore/QStringList>
 
-#include "ItalcCore.h"
+#include "SocketDevice.h"
 #include "ItalcSlaveManager.h"
 
 
@@ -42,7 +39,7 @@ public:
 	ItalcCoreServer();
 	virtual ~ItalcCoreServer();
 
-	static ItalcCoreServer * instance()
+	static ItalcCoreServer *instance()
 	{
 		Q_ASSERT( this != NULL );
 		return _this;
@@ -59,6 +56,7 @@ public:
 
 	void setAllowedIPs( const QStringList &allowedIPs )
 	{
+		QMutexLocker l( &m_dataMutex );
 		m_allowedIPs = allowedIPs;
 	}
 
@@ -68,9 +66,11 @@ private:
 
 	bool doKeyBasedAuth( SocketDevice &sdev, const QString &host );
 	bool doHostBasedAuth( const QString &host );
+	bool doCommonSecretAuth( SocketDevice &sdev );
 
-	static ItalcCoreServer * _this;
+	static ItalcCoreServer *_this;
 
+	QMutex m_dataMutex;
 	QStringList m_allowedIPs;
 
 	// list of hosts that are allowed/denied to access ICA when ICA is running

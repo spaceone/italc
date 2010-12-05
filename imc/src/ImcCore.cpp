@@ -22,6 +22,7 @@
  *
  */
 
+#include <QtGui/QApplication>
 #include <QtGui/QMessageBox>
 
 #include <italcconfig.h>
@@ -33,6 +34,8 @@
 #include "ItalcCore.h"
 #include "LocalSystem.h"
 #include "Logger.h"
+#include "LogonAclSettings.h"
+#include "MainWindow.h"
 #include "SystemConfigurationModifier.h"
 
 
@@ -48,15 +51,13 @@ static void configApplyError( const QString &msg )
 	QCoreApplication *app = QCoreApplication::instance();
 	if( !app->arguments().contains( "-quiet" ) )
 	{
-		QMessageBox::critical( NULL, app->tr( "iTALC Management Console" ), msg );
+		criticalMessage( MainWindow::tr( "iTALC Management Console" ), msg );
 	}
 }
 
 
 bool applyConfiguration( const ItalcConfiguration &c )
 {
-	QCoreApplication *app = QCoreApplication::instance();
-
 	// merge configuration
 	*ItalcCore::config += c;
 
@@ -64,27 +65,73 @@ bool applyConfiguration( const ItalcConfiguration &c )
 	if( !SystemConfigurationModifier::setServiceAutostart(
 									ItalcCore::config->autostartService() ) )
 	{
-		configApplyError( app->tr( "Could not modify the autostart property "
-									"for the iTALC Client Service." ) );
+		configApplyError(
+			MainWindow::tr( "Could not modify the autostart property "
+										"for the iTALC Service." ) );
 	}
 
 	if( !SystemConfigurationModifier::setServiceArguments(
 									ItalcCore::config->serviceArguments() ) )
 	{
-		configApplyError( app->tr( "Could not modify the service arguments "
-									"for the iTALC Client Service." ) );
+		configApplyError(
+			MainWindow::tr( "Could not modify the service arguments "
+									"for the iTALC Service." ) );
 	}
 	if( !SystemConfigurationModifier::enableFirewallException(
 							ItalcCore::config->isFirewallExceptionEnabled() ) )
 	{
-		configApplyError( app->tr( "Could not change the firewall configuration "
-									"for the iTALC Client Service." ) );
+		configApplyError(
+			MainWindow::tr( "Could not change the firewall configuration "
+									"for the iTALC Service." ) );
 	}
+
+#ifdef ITALC_BUILD_WIN32
+	ItalcCore::config->removeValue( "LogonACL", "Authentication" );
+
+	// if EncodedLogonACL is empty, nothing is done in setACL()
+	LogonAclSettings().setACL(
+		ItalcCore::config->value( "EncodedLogonACL", "Authentication" ) );
+#endif
 
 	// write global configuration
 	Configuration::LocalStore localStore( Configuration::LocalStore::System );
 	localStore.flush( ItalcCore::config );
 }
+
+
+
+
+static void listConfiguration( const ItalcConfiguration::DataMap &map,
+									const QString &parentKey )
+{
+	for( ItalcConfiguration::DataMap::ConstIterator it = map.begin();
+												it != map.end(); ++it )
+	{
+		QString curParentKey = parentKey.isEmpty() ?
+									it.key() : parentKey + "/" + it.key();
+		if( it.value().type() == QVariant::Map )
+		{
+			listConfiguration( it.value().toMap(), curParentKey );
+		}
+		else if( it.value().type() == QVariant::String )
+		{
+			QTextStream( stdout ) << curParentKey << "="
+									<< it.value().toString() << endl;
+		}
+		else
+		{
+			qWarning( "unknown value in configuration data map" );
+		}
+	}
+}
+
+
+
+void listConfiguration( const ItalcConfiguration &config )
+{
+	listConfiguration( config.data(), QString() );
+}
+
 
 
 
@@ -97,12 +144,20 @@ bool createKeyPair( ItalcCore::UserRole role, const QString &destDir )
 	PrivateDSAKey pkey( 1024 );
 	if( !pkey.isValid() )
 	{
-		qCritical( "ImcCore: key generation failed!" );
+		ilog_failed( "key generation" );
 		return false;
 	}
-	pkey.save( priv );
+	if( !pkey.save( priv ) )
+	{
+		ilog_failed( "saving private key" );
+		return false;
+	}
 
-	PublicDSAKey( pkey ).save( pub );
+	if( !PublicDSAKey( pkey ).save( pub ) )
+	{
+		ilog_failed( "saving public key" );
+		return false;
+	}
 
 	printf( "...done, saved key-pair in\n\n%s\n\nand\n\n%s",
 						priv.toUtf8().constData(),
@@ -121,6 +176,36 @@ bool createKeyPair( ItalcCore::UserRole role, const QString &destDir )
 
 
 
+bool importPublicKey( ItalcCore::UserRole role,
+							const QString &pubKey, const QString &destDir )
+{
+	// look whether the public key file is valid
+	PublicDSAKey dsaKey( pubKey );
+	if( !dsaKey.isValid() )
+	{
+		qCritical() << "ImcCore::importPublicKey(): file" << pubKey
+					<< "is not a valid public key file";
+		return false;
+	}
+
+	QString pub = LocalSystem::Path::publicKeyPath( role, destDir );
+	QFile destFile( pub );
+	if( destFile.exists() )
+	{
+		destFile.setPermissions( QFile::WriteOwner );
+		if( !destFile.remove() )
+		{
+			qCritical() << "ImcCore::importPublicKey(): could not remove "
+							"existing public key file" << destFile.fileName();
+			return false;
+		}
+	}
+
+	// now try to copy it
+	return dsaKey.save( pub );
+}
+
+
 
 QString icaFilePath()
 {
@@ -129,6 +214,31 @@ QString icaFilePath()
 	path += ".exe";
 #endif
 	return QDTNS( path );
+}
+
+
+
+
+void informationMessage( const QString &title, const QString &msg )
+{
+	LogStream( Logger::LogLevelInfo ) << title.toUtf8().constData()
+								<< ":" << msg.toUtf8().constData();
+	if( QApplication::type() != QApplication::Tty )
+	{
+		QMessageBox::information( NULL, title, msg );
+	}
+}
+
+
+
+void criticalMessage( const QString &title, const QString &msg )
+{
+	LogStream( Logger::LogLevelCritical ) << title.toUtf8().constData()
+								<< ":" << msg.toUtf8().constData();
+	if( QApplication::type() != QApplication::Tty )
+	{
+		QMessageBox::critical( NULL, title, msg );
+	}
 }
 
 

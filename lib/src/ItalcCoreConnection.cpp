@@ -24,6 +24,7 @@
 
 #include "ItalcCoreConnection.h"
 #include "Logger.h"
+#include "SocketDevice.h"
 
 
 class ItalcMessageEvent : public ClientEvent
@@ -52,7 +53,7 @@ private:
 
 
 static rfbClientProtocolExtension * __italcProtocolExt = NULL;
-static void * ItalcCoreConnectionTag = (void *) PortOffsetIVS; // an unique ID
+static void * ItalcCoreConnectionTag = (void *) PortOffsetVncServer; // an unique ID
 
 
 
@@ -232,10 +233,10 @@ void ItalcCoreConnection::logonUser( const QString &uname,
 						const QString &pw,
 						const QString &domain )
 {
-	enqueueMessage( ItalcCore::Msg( ItalcCore::LogonUserCmd ).
+/*	enqueueMessage( ItalcCore::Msg( ItalcCore::LogonUserCmd ).
 						addArg( "uname", uname ).
 						addArg( "passwd", pw ).
-						addArg( "domain", domain ) );
+						addArg( "domain", domain ) );*/
 }
 
 

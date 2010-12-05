@@ -34,7 +34,6 @@
 #include "ui_MainWindow.h"
 
 #include "Client.h"
-#include "ItalcSlaveManager.h"
 #include "SnapshotList.h"
 
 
@@ -91,9 +90,14 @@ public:
 		return m_remoteControlWidget != NULL;
 	}
 
-	inline void reloadSnapshotList()
+	const QString &username() const
 	{
-		m_snapshotList->reloadList();
+		return m_username;
+	}
+
+	const QString &password() const
+	{
+		return m_password;
 	}
 
 
@@ -140,6 +144,9 @@ private:
 
 	QWidget * m_sideBarWidget;
 	int m_openedTabInSideBar;
+
+	QString m_username;
+	QString m_password;
 
 	QReadWriteLock m_rctrlLock;
 	RemoteControlWidget * m_remoteControlWidget;

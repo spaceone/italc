@@ -134,17 +134,17 @@ public:
 		m_displayName = _displayName;
 	}
 
-	inline void setHost( const QString & _host )
+	void setHost( const QString & _host )
 	{
 		m_host = _host;
 	}
 
-	inline void setMac( const QString & _mac )
+	void setMac( const QString & _mac )
 	{
 		m_mac = _mac;
 	}
 
-	inline const QPoint & rasterPosition() const
+	const QPoint & rasterPosition() const
 	{
 		return m_rasterPosition;
 	}
@@ -194,6 +194,7 @@ private:
 	QString m_host;
 	QString m_mac;
 	QString m_user;
+	volatile bool m_takeSnapshot;
 
 	bool m_selected;
 

@@ -35,24 +35,14 @@
 #define rfbItalcCoreResponse		rfbItalcCoreRequest
 
 
-#define rfbEncodingItalc 30
-#define rfbEncodingItalcCursor 31
-
 #define rfbSecTypeItalc 30
 
 
 enum PortOffsets
 {
-	PortOffsetIVS = 11100,
-	PortOffsetDemoServer = PortOffsetIVS + 300
-} ;
-
-
-struct ItalcRectEncodingHeader
-{
-	uint8_t compressed;
-	uint32_t bytesLZO;
-	uint32_t bytesRLE;
+	PortOffsetVncServer = 11100,
+	PortOffsetDemoServer = PortOffsetVncServer + 300,
+	PortOffsetHttpServer = 5800
 } ;
 
 
@@ -67,6 +57,10 @@ enum ItalcAuthTypes
 	// client has to sign some data to verify it's authority
 	ItalcAuthDSA,
 
+	// client has to prove its authenticity by knowing an application-internal
+	// secret
+	ItalcAuthCommonSecret,
+
 	NumItalcAuthTypes
 
 } ;
@@ -78,7 +72,9 @@ typedef enum ItalcAuthTypes ItalcAuthType;
 extern "C"
 {
 #endif
-void handleSecTypeItalc( rfbClient * _cl );
+int isLogonAuthenticationEnabled( rfbClient *client );
+void handleSecTypeItalc( rfbClient *client );
+void handleMsLogonIIAuth( rfbClient *client );
 #ifdef __cplusplus
 }
 #endif

@@ -42,6 +42,7 @@
 #include "SystemKeyTrapper.h"
 
 #include <QtCore/QList>
+#include <QtCore/QProcess>
 #include <QtCore/QTimer>
 
 static QMutex __trapped_keys_mutex;
@@ -242,6 +243,25 @@ void SystemKeyTrapper::setEnabled( bool _on )
 					this, SLOT( checkForTrappedKeys() ) );
 		t->start( 10 );
 #endif
+#ifdef ITALC_BUILD_LINUX
+		// read original keymap
+		QProcess p;
+		p.start( "xmodmap", QStringList() << "-pke" );	// print keymap
+		p.waitForFinished();
+		m_origKeyTable = p.readAll();
+
+		// remove all Switch_VT and Terminate_Server references
+		QString keyTableModified = QString( m_origKeyTable ).
+					replace( QRegExp( "XF86_Switch_VT_\\d+" ), QString() ).
+					replace( "Terminate_Server", QString() );
+
+		// start new xmodmap process and dump our modified keytable from stdin
+		p.start( "xmodmap", QStringList() << "-" );
+		p.waitForStarted();
+		p.write( keyTableModified.toAscii() );
+		p.closeWriteChannel();
+		p.waitForFinished();
+#endif
 		++s_refCnt;
 	}
 	else
@@ -264,6 +284,15 @@ void SystemKeyTrapper::setEnabled( bool _on )
 			}
 		}
 #endif
+#ifdef ITALC_BUILD_LINUX
+		// start xmodmap process and dump our original keytable from stdin
+		QProcess p;
+		p.start( "xmodmap", QStringList() << "-" );
+		p.waitForStarted();
+		p.write( m_origKeyTable );
+		p.closeWriteChannel();
+		p.waitForFinished();
+#endif
 	}
 	s_refCntMutex.unlock();
 }
@@ -285,7 +314,7 @@ void SystemKeyTrapper::checkForTrappedKeys( void )
 
 	while( !__trapped_keys.isEmpty() )
 	{
-		int key = 0;
+		unsigned int key = 0;
 		switch( __trapped_keys.front() )
 		{
 			case None: break;

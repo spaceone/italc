@@ -6,7 +6,7 @@
 !define COPYRIGHT "© Tobias Doerffel 2004-2010"
 !define DESCRIPTION "Intelligent Teaching and Learning with Computers"
 !define LICENSE_TXT "@CMAKE_SOURCE_DIR@/COPYING"
-!define INSTALLER_NAME "italc-${VERSION}-setup.exe"
+!define INSTALLER_NAME "italc-${VERSION}-@MINGW_PLATFORM@-setup.exe"
 !define MAIN_APP_EXE "italc.exe"
 !define INSTALL_TYPE "SetShellVarContext all"
 !define REG_ROOT "HKLM"
@@ -31,7 +31,7 @@ OutFile "${INSTALLER_NAME}"
 BrandingText "${APP_NAME} ${VERSION}"
 XPStyle on
 InstallDirRegKey "${REG_ROOT}" "${REG_APP_PATH}" ""
-InstallDir "$PROGRAMFILES\iTALC"
+InstallDir "$PROGRAMFILES64\iTALC"
 ShowInstDetails show
 
 ######################################################################
@@ -159,11 +159,14 @@ File "${DLLDIR}\libssl32.dll"
 # core components
 File "italc-${VERSION}\ica.exe"
 File "italc-${VERSION}\vnchooks.dll"
+File "italc-${VERSION}\authSSP.dll"
 File "italc-${VERSION}\ItalcCore.dll"
 File "italc-${VERSION}\imc.exe"
 File "italc-${VERSION}\LICENSE.TXT"
 File "italc-${VERSION}\README.TXT"
+File "italc-${VERSION}\*txt"
 ExecWait '"$INSTDIR\ica.exe" -quiet -registerservice'
+ExecWait '"$INSTDIR\imc.exe" -s Network/FirewallExceptionEnabled=1'
 ExecWait '"$INSTDIR\ica.exe" -quiet -startservice'
 SectionEnd
 
@@ -228,6 +231,7 @@ SectionEnd
 
 Section Uninstall
 ${INSTALL_TYPE}
+ExecWait '"$INSTDIR\imc.exe" -s Network/FirewallExceptionEnabled=0'
 ExecWait '"$INSTDIR\ica.exe" -quiet -unregisterservice'
 # make sure the service is stopped and all file handles are released
 Sleep 2000
@@ -240,6 +244,7 @@ Delete "$INSTDIR\QtNetwork4.dll"
 Delete "$INSTDIR\QtCore4.dll"
 Delete "$INSTDIR\libssl32.dll"
 Delete "$INSTDIR\LICENSE.TXT"
+Delete "$INSTDIR\authSSP.dll"
 Delete "$INSTDIR\vnchooks.dll"
 Delete "$INSTDIR\imc.exe"
 Delete "$INSTDIR\italc.exe"
@@ -248,6 +253,7 @@ Delete "$INSTDIR\italc_core.dll"
 Delete "$INSTDIR\QtGui4.dll"
 Delete "$INSTDIR\uninstall.exe"
 Delete "$INSTDIR\iTALC website.url"
+Delete "$INSTDIR\*.txt"
 
 RmDir "$INSTDIR"
 

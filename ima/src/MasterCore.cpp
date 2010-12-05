@@ -32,7 +32,6 @@
 #include "ClassroomManager.h"
 #include "GlobalConfig.h"
 #include "PersonalConfig.h"
-#include "DemoServerMaster.h"
 
 
 namespace MasterCore
@@ -40,18 +39,14 @@ namespace MasterCore
 
 // static data initialization
 ItalcVncConnection * localDisplay = NULL;
-int localDisplayPort = PortOffsetIVS;
+int localDisplayPort = PortOffsetVncServer;
 
 GlobalConfig * globalConfig = NULL;
 PersonalConfig * personalConfig = NULL;
 
-ItalcSlaveManager *italcSlaveManager;
-
 ItalcCoreConnection * localCore = NULL;
 
 ClassroomManager * classroomManager = NULL;
-
-DemoServerMaster * demoServerMaster = NULL;
 
 
 void init( void )
@@ -64,7 +59,7 @@ void init( void )
 					QHostAddress::LocalHost
 #endif
 								).toString() );
-	if( localDisplayPort != PortOffsetIVS )
+	if( localDisplayPort != PortOffsetVncServer )
 	{
 		localDisplay->setPort( localDisplayPort );
 	}
@@ -80,10 +75,6 @@ void init( void )
 
 	localCore = new ItalcCoreConnection( localDisplay );
 	localCore->setRole( ItalcCore::role );
-
-	italcSlaveManager = new ItalcSlaveManager;
-	italcSlaveManager->demoServerMaster()->
-								start( PortOffsetIVS, PortOffsetDemoServer );
 
 	classroomManager = new ClassroomManager;
 

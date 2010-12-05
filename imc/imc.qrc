@@ -1,5 +1,9 @@
 <RCC>
   <qresource prefix="/">
+    <file>Resources/kbugbuster.png</file>
+    <file>Resources/task-accepted.png</file>
+    <file>Resources/preferences-other.png</file>
+    <file>Resources/imc.png</file>
     <file>Resources/help-hint.png</file>
     <file>Resources/arrow-right.png</file>
     <file>Resources/system-shutdown.png</file>

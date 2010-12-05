@@ -110,7 +110,7 @@ typedef uint32_t in_addr_t;
 #define                INADDR_NONE     ((in_addr_t) 0xffffffff)
 #endif
 
-#define MAX_ENCODINGS 20
+#define MAX_ENCODINGS 32
 
 /*****************************************************************************
  *
@@ -279,6 +279,7 @@ typedef char rfbProtocolVersionMsg[13];	/* allow extra byte for null */
 #define rfbUltra 17
 #define rfbTLS 18
 #define rfbVeNCrypt 19
+#define rfbUltraVNC_MsLogonIIAuth 0x71
 #define rfbMSLogon 0xfffffffa
 
 #define rfbVeNCryptPlain 256
@@ -384,7 +385,6 @@ typedef struct {
 #define rfbServerCutText 3
 /* Modif sf@2002 */
 #define rfbResizeFrameBuffer 4
-#define rfbKeyFrameUpdate 5
 #define rfbPalmVNCReSizeFrameBuffer 0xF
 
 /* client -> server */
@@ -407,9 +407,10 @@ typedef struct {
 /* Modif sf@2002 - TextChat - Bidirectionnal */
 #define rfbTextChat	11
 /* Modif cs@2005 */
-#define rfbKeyFrameRequest 12
 /* PalmVNC 1.4 & 2.0 SetScale Factor message */
 #define rfbPalmVNCSetScaleFactor 0xF
+/* Xvp message - bidirectional */
+#define rfbXvp 250
 
 
 
@@ -443,6 +444,9 @@ typedef struct {
 #define rfbEncodingCacheZip              0xFFFF0007
 #define rfbEncodingSolMonoZip            0xFFFF0008
 #define rfbEncodingUltraZip              0xFFFF0009
+
+/* Xvp pseudo-encoding */
+#define rfbEncodingXvp 			 0xFFFFFECB
 
 /*
  * Special encoding numbers:
@@ -518,18 +522,6 @@ typedef struct {
 } rfbFramebufferUpdateMsg;
 
 #define sz_rfbFramebufferUpdateMsg 4
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- * KeyFrameUpdate - Acknowledgment of a key frame request, it tells the client
- * that the next update received will be a key frame.
- */
-
-typedef struct {
-    uint8_t type;
-} rfbKeyFrameUpdateMsg;
-
-#define sz_rfbKeyFrameUpdateMsg 1
-
 
 /*
  * Each rectangle of pixel data consists of a header describing the position
@@ -986,6 +978,7 @@ typedef enum {
 	clipText		= 0x00000001,	// Unicode text (UTF-8 encoding)
 	clipRTF			= 0x00000002,	// Microsoft RTF format
 	clipHTML		= 0x00000004,	// Microsoft HTML clipboard format
+	clipDIB			= 0x00000008,	// Microsoft DIBv5
 	// line endings are not touched and remain as \r\n for Windows machines. Terminating NULL characters are preserved.
 
 	// Complex formats
@@ -995,7 +988,6 @@ typedef enum {
 	//
 	// Please note none of these are implemented yet, but seem obvious enough that their values are reserved here
 	// for posterity.
-	clipImage		= 0x00000008,	// Image formats
 	clipFiles		= 0x00000010,	// probably also more than one file
 	clipFormatMask	= 0x0000FFFF,
 
@@ -1015,16 +1007,14 @@ typedef enum {
 									// Currently, the defaults are the messages and formats defined in this initial implementation
 									// that are common to both server and viewer:
 									//    clipCaps | clipRequest | clipProvide | (clipNotify if viewer, clipPeek if server)
-									//    clipText | clipRTF | clipHTML
+									//    clipText | clipRTF | clipHTML | clipDIB
 									//    (Note that clipNotify is only relevant from server->viewer, and clipPeek is only relevant
 									//     from viewer->server. Therefore they are left out of the defaults but can be set with the
 									//     rest of the caps if desired.)
-									// However clipRTF and clipHTML are limited by default to 0 bytes, meaning that they will only
-									// notify the client rather than send the information automatically.
 									// It is also strongly recommended to set up maximum sizes for the formats since currently
 									// the data is sent synchronously and cannot be interrupted. If data exceeds the maximum size,
 									// then the server should send the clipNotify so the client may send clipRequest. Current default 
-									// limits were somewhat arbitrarily chosen as 20mb for text and zero for the others (notify only).
+									// limits were somewhat arbitrarily chosen as 2mb (10mb for text) and 0 for image
 									// Note that these limits are referring to the length of uncompressed data.
 	clipRequest		= 0x02000000,	// request clipboard data (should be combined with desired formats)
 									// Message should be empty
@@ -1151,6 +1141,44 @@ typedef struct _rfbTextChatMsg {
 #define rfbTextChatFinished 0xFFFFFFFD  
 
 
+/*-----------------------------------------------------------------------------
+ * Xvp Message
+ * Bidirectional message
+ * A server which supports the xvp extension declares this by sending a message
+ * with an Xvp_INIT xvp-message-code when it receives a request from the client
+ * to use the xvp Pseudo-encoding. The server must specify in this message the
+ * highest xvp-extension-version it supports: the client may assume that the
+ * server supports all versions from 1 up to this value. The client is then
+ * free to use any supported version. Currently, only version 1 is defined.
+ *
+ * A server which subsequently receives an xvp Client Message requesting an
+ * operation which it is unable to perform, informs the client of this by
+ * sending a message with an Xvp_FAIL xvp-message-code, and the same
+ * xvp-extension-version as included in the client's operation request.
+ *
+ * A client supporting the xvp extension sends this to request that the server
+ * initiate a clean shutdown, clean reboot or abrupt reset of the system whose
+ * framebuffer the client is displaying.
+ */
+
+
+typedef struct {
+    uint8_t type;			/* always rfbXvp */
+	uint8_t pad;
+	uint8_t version;	/* xvp extension version */
+	uint8_t code;      	/* xvp message code */
+} rfbXvpMsg;
+
+#define sz_rfbXvpMsg (4)
+
+/* server message codes */
+#define rfbXvp_Fail 0
+#define rfbXvp_Init 1
+/* client message codes */
+#define rfbXvp_Shutdown 2
+#define rfbXvp_Reboot 3
+#define rfbXvp_Reset 4
+
 
 /*-----------------------------------------------------------------------------
  * Modif sf@2002
@@ -1205,6 +1233,7 @@ typedef union {
 	rfbPalmVNCReSizeFrameBufferMsg prsfb; 
 	rfbFileTransferMsg ft;
 	rfbTextChatMsg tc;
+        rfbXvpMsg xvp;
 } rfbServerToClientMsg;
 
 
@@ -1440,6 +1469,7 @@ typedef struct _rfbSetSWMsg {
 #define sz_rfbSetSWMsg 6
 
 
+
 /*-----------------------------------------------------------------------------
  * Union of all client->server messages.
  */
@@ -1459,6 +1489,7 @@ typedef union {
 	rfbFileTransferMsg ft;
 	rfbSetSWMsg sw;
 	rfbTextChatMsg tc;
+        rfbXvpMsg xvp;
 } rfbClientToServerMsg;
 
 /* 

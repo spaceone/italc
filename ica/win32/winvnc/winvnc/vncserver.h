@@ -55,7 +55,7 @@ class vncServer;
 #include <list>
 
 // adzm - 2010-07 - Extended clipboard
-#include "common/clipboard.h"
+#include "common/Clipboard.h"
 
 typedef BOOL (WINAPI *WTSREGISTERSESSIONNOTIFICATION)(HWND, DWORD);
 typedef BOOL (WINAPI *WTSUNREGISTERSESSIONNOTIFICATION)(HWND);
@@ -305,7 +305,7 @@ public:
 
 	// Whether or not to allow connections from the local machine
 	virtual void SetLoopbackOk(BOOL ok) {m_loopback_allowed = ok;};
-	virtual BOOL LoopbackOk() {return TRUE;}//m_loopback_allowed;};
+	virtual BOOL LoopbackOk() {return m_loopback_allowed;};
 
 	// Whether or not to shutdown or logoff when the last client leaves
 	virtual void SetLockSettings(int ok) {m_lock_on_exit = ok;};
@@ -392,7 +392,7 @@ public:
 
 	// sf@2007 - Vista / XP FUS special modes
 	virtual BOOL RunningFromExternalService(){return m_fRunningFromExternalService;};
-	virtual void RunningFromExternalService(BOOL fEnabled){m_fRunningFromExternalService = fEnabled;};
+	virtual void RunningFromExternalService(BOOL fEnabled){m_fRunningFromExternalService = true;};
 
 	virtual void AutoRestartFlag(BOOL fOn){m_fAutoRestart = fOn;};
 	virtual BOOL AutoRestartFlag(){return m_fAutoRestart;};

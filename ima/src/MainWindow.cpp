@@ -44,18 +44,20 @@
 #include <QtNetwork/QHostAddress>
 
 #include "MainWindow.h"
+#include "AuthenticationCredentials.h"
 #include "ClassroomManager.h"
 #include "DecoratedMessageBox.h"
 #include "Dialogs.h"
 #include "MasterCore.h"
+#include "PasswordDialog.h"
 #include "OverviewWidget.h"
 #include "PersonalConfig.h"
 #include "SnapshotList.h"
 #include "ConfigWidget.h"
-#include "DecoratedMessageBox.h"
 #include "ToolButton.h"
 #include "ItalcConfiguration.h"
 #include "LocalSystem.h"
+#include "Logger.h"
 #include "RemoteControlWidget.h"
 
 
@@ -84,7 +86,7 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 		{
 			splashScreen->hide();
 		}
-		DecoratedMessageBox::information( tr( "No write access" ),
+		QMessageBox::information( this, tr( "No write access" ),
 			tr( "Could not read/write or create directory %1! "
 			"For running iTALC, make sure you're permitted to "
 			"create or write this directory." ).arg(
@@ -308,31 +310,39 @@ MainWindow::MainWindow( int _rctrl_screen ) :
 			btn->setVisible( false );
 		}
 	}
-*/
-	while( 1 )
+
+	ItalcVncConnection * conn = new ItalcVncConnection( this );
+	// attach ItalcCoreConnection to it so we can send extended iTALC commands
+	m_localICA = new ItalcCoreConnection( conn );
+
+	conn->setHost( QHostAddress( QHostAddress::LocalHost ).toString() );
+	conn->setPort( ItalcCore::config->coreServerPort() );
+	conn->setFramebufferUpdateInterval( -1 );
+	conn->start();
+
+	if( !conn->waitForConnected( 5000 ) )
 	{
-		if( ItalcCore::initAuthentication() == false )
+		QMessageBox::information( this,
+			tr( "Could not contact iTALC service" ),
+			tr( "Could not contact the local iTALC service. It is likely "
+				"that you entered wrong credentials or key files are "
+				"not set up properly. Try again or contact your "
+				"administrator for solving this problem using the iTALC "
+				"Management Console." ) );
+		if( ItalcCore::config->logLevel() < Logger::LogLevelDebug )
 		{
-			if( ItalcCore::role != ItalcCore::RoleTeacher )
-			{
-				ItalcCore::role = ItalcCore::RoleTeacher;
-				continue;
-			}
-			if( splashScreen != NULL )
-			{
-				splashScreen->hide();
-			}
-			DecoratedMessageBox::information(
-				tr( "No valid keys found" ),
-	tr( "No authentication-keys were found or your old ones were broken. "
-		"Please create a new key-pair using ICA (see documentation at "
-		"http://italc.sf.net/wiki/index.php?title=Installation).\n"
-		"Otherwise you won't be able to access computers using "
-								"iTALC." ) );
+			return;
 		}
-		break;
 	}
 
+	// update the role under which ICA is running
+	m_localICA->setRole( ItalcCore::role );
+	m_localICA->startDemoServer( ItalcCore::config->coreServerPort(),
+									ItalcCore::config->demoServerPort() );
+
+//	##ITALC2: m_localISD->hideTrayIcon();
+*/
+	// setup system tray icon
 	QIcon icon( ":/resources/icon16.png" );
 	icon.addFile( ":/resources/icon22.png" );
 	icon.addFile( ":/resources/icon32.png" );
@@ -359,9 +369,48 @@ MainWindow::~MainWindow()
 	// also delets clients
 	delete m_workspace;
 
+//	m_localICA->stopDemoServer();
+
+//	delete m_localICA;
+//	m_localICA = NULL;
+
 	m_systemTrayIcon.hide();
 }
 
+
+
+#if 0
+bool MainWindow::initAuthentication()
+{
+	if( ItalcCore::initAuthentication() )
+	{
+		return true;
+	}
+
+	if( ItalcCore::role != ItalcCore::RoleTeacher )
+	{
+		ItalcCore::role = ItalcCore::RoleTeacher;
+		return initAuthentication();
+	}
+
+	// if we have logon credentials, assume they are fine and continue
+	if( ItalcCore::authenticationCredentials->hasCredentials(
+									AuthenticationCredentials::UserLogon ) )
+	{
+		return true;
+	}
+
+	QMessageBox::information( NULL,
+			tr( "Authentication impossible" ),
+			tr(	"No authentication key files were found or your current ones "
+				"are outdated. Please create new key files using the iTALC "
+				"Management Console. Alternatively set up logon authentication "
+				"using the iTALC Management Console. Otherwise you won't be "
+				"able to access computers using iTALC." ) );
+
+	return false;
+}
+#endif
 
 
 
@@ -463,12 +512,11 @@ void MainWindow::remoteControlDisplay( const QString & _hostname,
 						bool _stop_demo_afterwards )
 {
 	QWriteLocker wl( &m_rctrlLock );
-	if( m_remoteControlWidget  )
+	if( m_remoteControlWidget )
 	{
 		return;
 	}
-	m_remoteControlWidget = new RemoteControlWidget( _hostname, _view_only,
-									this );
+	m_remoteControlWidget = new RemoteControlWidget( _hostname, _view_only );
 	int x = 0;
 	for( int i = 0; i < m_remoteControlScreen; ++i )
 	{

@@ -27,28 +27,28 @@
 #include <QtNetwork/QHostInfo>
 
 #include "DemoServerSlave.h"
+#include "ItalcConfiguration.h"
+#include "ItalcCore.h"
 #include "ItalcVncServer.h"
+#include "DemoServer.h"
 
 
 // a helper threading running the VNC reflector
-class DemoServerThread : public QThread
+class VncReflectorThread : public QThread
 {
 public:
-	DemoServerThread( int srcPort, int dstPort ) :
+	VncReflectorThread( int srcPort, int dstPort ) :
 		QThread(),
 		m_srcPort( srcPort ),
 		m_dstPort( dstPort )
 	{
+		start();
 	}
 
 
 protected:
 	virtual void run()
 	{
-		if( ItalcCore::role == ItalcCore::RoleOther )
-		{
-			ItalcCore::role = ItalcCore::RoleTeacher;
-		}
 		ItalcVncServer::runVncReflector( m_srcPort, m_dstPort );
 	}
 
@@ -64,7 +64,7 @@ private:
 
 DemoServerSlave::DemoServerSlave() :
 	IcaSlave(),
-	m_demoServerThread( NULL ),
+	m_demoServer( NULL ),
 	m_coreServer()
 {
 }
@@ -73,7 +73,7 @@ DemoServerSlave::DemoServerSlave() :
 
 DemoServerSlave::~DemoServerSlave()
 {
-	delete m_demoServerThread;
+	delete m_demoServer;
 }
 
 
@@ -82,13 +82,21 @@ bool DemoServerSlave::handleMessage( const Ipc::Msg &m )
 {
 	if( m.cmd() == ItalcSlaveManager::DemoServer::StartDemoServer )
 	{
-		ItalcCore::role =
-			static_cast<ItalcCore::UserRoles>(
-				m.argV( ItalcSlaveManager::DemoServer::UserRole ).toInt() );
-		m_demoServerThread = new DemoServerThread(
-			m.argV( ItalcSlaveManager::DemoServer::SourcePort ).toInt(),
-			m.argV( ItalcSlaveManager::DemoServer::DestinationPort ).toInt() );
-		m_demoServerThread->start();
+		ItalcCore::authenticationCredentials->setCommonSecret(
+						m.arg( ItalcSlaveManager::DemoServer::CommonSecret ) );
+
+		const int srcPort =
+				m.argV( ItalcSlaveManager::DemoServer::SourcePort ).toInt();
+		const int dstPort =
+				m.argV( ItalcSlaveManager::DemoServer::DestinationPort ).toInt();
+		if( ItalcCore::config->demoServerBackend() == 0 )
+		{
+			m_demoServer = new VncReflectorThread( srcPort, dstPort );
+		}
+		else
+		{
+			m_demoServer = new DemoServer( srcPort, dstPort, this );
+		}
 		return true;
 	}
 	else if( m.cmd() == ItalcSlaveManager::DemoServer::UpdateAllowedHosts )

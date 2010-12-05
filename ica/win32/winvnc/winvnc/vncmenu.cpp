@@ -28,8 +28,6 @@
 
 // Implementation of a system tray icon & menu for WinVNC
 
-#define _WIN32_IE 0x500
-
 #include "stdhdrs.h"
 #include "winvnc.h"
 #include "vncservice.h"
@@ -37,8 +35,6 @@
 #include <lmcons.h>
 #include <wininet.h>
 #include <shlobj.h>
-#include <imm.h>
-#include "common/win32_helpers.h"
 
 // Header
 
@@ -196,16 +192,12 @@ static bool IsUserDesktop()
 // adzm - 2010-07 - Disable more effects or font smoothing
 static void KillWallpaper()
 {
-#ifndef ULTRAVNC_ITALC_SUPPORT
 	HideDesktop();
-#endif
 }
 
 static void RestoreWallpaper()
 {
-#ifndef ULTRAVNC_ITALC_SUPPORT
   RestoreDesktop();
-#endif
 }
 
 // adzm - 2010-07 - Disable more effects or font smoothing
@@ -315,7 +307,7 @@ vncMenu::vncMenu(vncServer *server)
 	}
 
 	// record which client created this window
-    helper::SafeSetWindowUserData(m_hwnd, (LONG) this);
+    helper::SafeSetWindowUserData(m_hwnd, (LONG_PTR) this);
 
 	// Ask the server object to notify us of stuff
 	server->AddNotify(m_hwnd);
@@ -452,9 +444,7 @@ vncMenu::vncMenu(vncServer *server)
 	m_hmenu = LoadMenu(hInstResDLL, MAKEINTRESOURCE(IDR_TRAYMENU));
 
 	// Install the tray icon!
-#ifndef ULTRAVNC_ITALC_SUPPORT
 	AddTrayIcon();
-#endif
 	CoUninitialize();
 }
 
@@ -527,7 +517,7 @@ vncMenu::AddTrayIcon()
 		if (!tray)
 		{
 			IsIconSet=false;
-			vnclog.Print(LL_INTERR, VNCLOG("########### vncMenu::AddTrayIcon - User exists, traywnd is not found reset when counter reach %i=20\n"),IconFaultCounter);
+			vnclog.Print(LL_INTERR, VNCLOG("########### vncMenu::AddTrayIcon - User exists, traywnd is not found reset when counter reach %i=3\n"),IconFaultCounter);
 			IconFaultCounter++;
 			m_server->TriggerUpdate();
 			return;
@@ -729,7 +719,11 @@ vncMenu::SendTrayMsg(DWORD msg, BOOL flash)
 			m_properties.AllowEditClients() ? MF_ENABLED : MF_GRAYED);
 			EnableMenuItem(m_hmenu, ID_OUTGOING_CONN,
 			m_properties.AllowEditClients() ? MF_ENABLED : MF_GRAYED);
-
+			if (vncService::RunningAsService() && !vncService::IsInstalled())
+			{
+				//service is already disabled, but this winvnc was still started from the service
+				vncService::RunningFromExternalService(false);
+			}
 			EnableMenuItem(m_hmenu, ID_CLOSE_SERVICE,(vncService::RunningAsService()&&m_properties.AllowShutdown()) ? MF_ENABLED : MF_GRAYED);
 			EnableMenuItem(m_hmenu, ID_START_SERVICE,(vncService::IsInstalled() && !vncService::RunningAsService() && m_properties.AllowShutdown()) ? MF_ENABLED : MF_GRAYED);
 			EnableMenuItem(m_hmenu, ID_RUNASSERVICE,(!vncService::IsInstalled() &&!vncService::RunningAsService() && m_properties.AllowShutdown()) ? MF_ENABLED : MF_GRAYED);
@@ -738,7 +732,7 @@ vncMenu::SendTrayMsg(DWORD msg, BOOL flash)
 			OSVERSIONINFO OSversion;	
 			OSversion.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
 			GetVersionEx(&OSversion);
-			if(OSversion.dwMajorVersion>=6 && m_properties.AllowShutdown() && vncService::RunningAsService())
+			/*if(OSversion.dwMajorVersion>=6 && m_properties.AllowShutdown() && vncService::RunningAsService())
 			{
 				if (OSversion.dwMinorVersion==0) //Vista
 				{
@@ -771,11 +765,12 @@ vncMenu::SendTrayMsg(DWORD msg, BOOL flash)
 					RemoveMenu(m_hmenu, ID_DELSOFTWARECAD, MF_BYCOMMAND);
 				}
 			}
-			else 
+			else */
 			{
 				RemoveMenu(m_hmenu, ID_DELSOFTWARECAD, MF_BYCOMMAND);
 				RemoveMenu(m_hmenu, ID_SOFTWARECAD, MF_BYCOMMAND);
 			}
+
 
 			// adzm 2009-07-05
 			if (SPECIAL_SC_PROMPT) {
@@ -842,6 +837,7 @@ void vncMenu::Shutdown(bool kill_client)
 	if (kill_client) m_server->KillAuthClients();
 }
 
+extern BOOL G_HTTP;
 
 char newuser[UNLEN+1];
 // Process window messages
@@ -1060,7 +1056,7 @@ LRESULT CALLBACK vncMenu::WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lP
 								StartUPInfo.cb = sizeof(STARTUPINFO);
 						
 								CreateProcessAsUser(hPToken,NULL,dir,NULL,NULL,FALSE,DETACHED_PROCESS,NULL,NULL,&StartUPInfo,&ProcessInfo);
-								DWORD error=GetLastError();
+								GetLastError();
                                 if (ProcessInfo.hThread) CloseHandle(ProcessInfo.hThread);
                                 if (ProcessInfo.hProcess) CloseHandle(ProcessInfo.hProcess);
 								//if (error==1314)
@@ -1100,7 +1096,7 @@ LRESULT CALLBACK vncMenu::WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lP
 								StartUPInfo.cb = sizeof(STARTUPINFO);
 						
 								CreateProcessAsUser(hPToken,NULL,dir,NULL,NULL,FALSE,DETACHED_PROCESS,NULL,NULL,&StartUPInfo,&ProcessInfo);
-								DWORD error=GetLastError();
+								GetLastError();
                                 if (ProcessInfo.hThread) CloseHandle(ProcessInfo.hThread);
                                 if (ProcessInfo.hProcess) CloseHandle(ProcessInfo.hProcess);
 								//if (error==1314)
@@ -1292,10 +1288,10 @@ LRESULT CALLBACK vncMenu::WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lP
 					}
 
 					}
-					fShutdownOrdered=TRUE;
+					/*fShutdownOrdered=TRUE;
 					vnclog.Print(LL_INTINFO, VNCLOG("KillAuthClients() ID_CLOSE \n"));
 					_this->m_server->KillAuthClients();					
-					PostMessage(hwnd, WM_CLOSE, 0, 0);
+					PostMessage(hwnd, WM_CLOSE, 0, 0);*/
 				}
 			}
 			break;
@@ -1664,7 +1660,7 @@ LRESULT CALLBACK vncMenu::WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lP
 			// of a listening client, to which we should connect.
 
 			//adzm 2009-06-20 - Check for special add repeater client message
-			if (wParam == 0xFFFFFFFF && lParam == 0xFFFFFFFF) {
+			if (wParam == 0xFFFFFFFF && (ULONG) lParam == 0xFFFFFFFF) {
 				vncConnDialog *newconn = new vncConnDialog(_this->m_server);
 				if (newconn)
 				{
@@ -1743,6 +1739,21 @@ LRESULT CALLBACK vncMenu::WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lP
 			if (tmpsock) {
 
 				// Connect out to the specified host on the VNCviewer listen port
+				if (G_HTTP)
+				{
+					if (tmpsock->Http_CreateConnect(szAdrName))
+					{
+						_this->m_server->AddClient(tmpsock, TRUE, TRUE, 0, NULL, NULL, szAdrName, nport);
+					}
+					else
+					{
+						delete tmpsock;
+						_this->m_server->AutoConnectRetry();
+					}
+
+				}
+				else
+				{
 				tmpsock->Create();
 				if (tmpsock->Connect(szAdrName, nport)) {
 					if ( bId )
@@ -1764,6 +1775,7 @@ LRESULT CALLBACK vncMenu::WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lP
 				} else {
 					delete tmpsock;
 					_this->m_server->AutoConnectRetry();
+				}
 				}
 			}
 		

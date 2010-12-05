@@ -22,19 +22,18 @@
  *
  */
 
-
 #include <italcconfig.h>
 #include <math.h>
 
 #include <QtCore/QDateTime>
 #include <QtCore/QTimer>
-#include <QtNetwork/QHostInfo>
 
 
 #include "ClassroomManager.h"
 #include "Client.h"
 #include "ClientAction.h"
 #include "Dialogs.h"
+#include "RunCommandsDialog.h"
 #include "ItalcConfiguration.h"
 #include "LocalSystem.h"
 #include "MasterCore.h"

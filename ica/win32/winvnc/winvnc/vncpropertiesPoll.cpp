@@ -224,7 +224,7 @@ vncPropertiesPoll::Show(BOOL show, BOOL usersettings)
 				    MAKEINTRESOURCE(IDD_PROPERTIES), 
 				    NULL,
 				    (DLGPROC) DialogProcPoll,
-				    (LONG) this);
+				    (LONG_PTR) this);
 
 				if (!m_returncode_valid)
 				    result = IDCANCEL;
@@ -245,10 +245,13 @@ vncPropertiesPoll::Show(BOOL show, BOOL usersettings)
 			}
 
 			// Load in all the settings
+			if (!vncService::RunningAsService())
+			{
 			if (m_fUseRegistry) 
 				Load(TRUE);
 			else
 				LoadFromIniFile();
+			}
 		}
 	}
 	if(iImpersonateResult == ERROR_SUCCESS)RevertToSelf();

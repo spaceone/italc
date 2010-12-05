@@ -24,10 +24,15 @@
  *
  */
 
-#include <QtCore/QDebug>
+#include <QtCore/QCoreApplication>
 #include <QtCore/QProcess>
+#include <QtCore/QTime>
 
 #include "Ipc/QtSlaveLauncher.h"
+
+#include "ItalcCore.h"
+#include "ItalcConfiguration.h"
+#include "Logger.h"
 
 namespace Ipc
 {
@@ -54,6 +59,13 @@ void QtSlaveLauncher::start( const QStringList &arguments )
 
 	m_processMutex.lock();
 	m_process = new QProcess;
+
+	// forward stdout from slave to master when in debug mode
+	if( ItalcCore::config->logLevel() >= Logger::LogLevelDebug )
+	{
+		m_process->setProcessChannelMode( QProcess::ForwardedChannels );
+	}
+
 #ifndef DEBUG
 	m_process->start( applicationFilePath(), arguments );
 #else
@@ -69,8 +81,17 @@ void QtSlaveLauncher::stop()
 	m_processMutex.lock();
 	if( m_process )
 	{
-		if( !m_process->waitForFinished( 5000 ) )
+		QTime t;
+		t.start();
+
+		while( t.elapsed() < 5000 && m_process->state() != QProcess::NotRunning )
 		{
+			QCoreApplication::processEvents();
+		}
+
+		if( m_process->state() != QProcess::NotRunning )
+		{
+			qWarning( "Slave still running, terminating it now." );
 			m_process->terminate();
 			m_process->kill();
 		}

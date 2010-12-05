@@ -49,7 +49,8 @@ public:
 	{
 		Personal,	// for current user
 		Global,		// for all users
-		System		// system-wide (service settings etc.)
+		System,		// system-wide (service settings etc.)
+		BugReportArchive
 	} ;
 	typedef Scopes Scope;
 
@@ -70,13 +71,14 @@ public:
 		return m_scope;
 	}
 
-	QString configurationNameFromScope()
+	QString configurationNameFromScope() const
 	{
 		switch( scope() )
 		{
 			case Global: return "GlobalConfig";
 			case Personal: return "PersonalConfig";
 			case System: return "SystemConfig";
+			case BugReportArchive: return "BugReportArchive";
 		}
 
 		return QString();
@@ -84,6 +86,7 @@ public:
 
 	virtual void load( Object *obj ) = 0;
 	virtual void flush( Object *obj ) = 0;
+	virtual bool isWritable() const = 0;
 
 
 private:

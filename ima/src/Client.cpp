@@ -24,8 +24,8 @@
  */
 
 #include "Client.h"
-#include "DemoServerMaster.h"
 #include "ItalcVncConnection.h"
+#include "ItalcConfiguration.h"
 #include "ItalcCoreConnection.h"
 #include "MasterCore.h"
 #include "PersonalConfig.h"
@@ -106,8 +106,7 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				MasterCore::italcSlaveManager->demoServerMaster()->
-														unallowHost( m_host );
+				MasterCore::localCoreService->demoServerUnallowHost( m_host );
 				m_coreConn->stopDemo();
 				break;
 			case Mode_Locked:
@@ -123,12 +122,10 @@ void Client::changeMode( const Modes _new_mode )
 				break;
 			case Mode_FullscreenDemo:
 			case Mode_WindowDemo:
-				MasterCore::italcSlaveManager->demoServerMaster()->
-														allowHost( m_host );
+				MasterCore::localCoreService->demoServerAllowHost( m_host );
 				m_coreConn->startDemo(
 								QString(),// let client guess IP from connection
-								MasterCore::italcSlaveManager->
-									demoServerMaster()->serverPort(),
+								ItalcCore::config->demoServerPort(),
 								m_mode == Mode_FullscreenDemo );
 				break;
 			case Mode_Locked:
@@ -244,7 +241,7 @@ void Client::logoutUser()
 
 void Client::snapshot()
 {
-	m_makeSnapshot = true;
+	m_takeSnapshot = true;
 }
 
 

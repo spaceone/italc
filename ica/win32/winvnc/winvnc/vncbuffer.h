@@ -40,7 +40,6 @@ class vncBuffer;
 // Includes
 
 #include "stdhdrs.h"
-#include "vncencoder.h"
 #include "rfbRegion.h"
 #include "rfbRect.h"
 #include "rfb.h"
@@ -86,6 +85,7 @@ public:
 	BOOL IsShapeCleared();
 	void MultiMonitors(int number);
 	bool  IsMultiMonitor();
+	void WriteMessageOnScreen(char*);
 
 	// sf@2005 - Grey Palette
 	void EnableGreyPalette(BOOL enable);

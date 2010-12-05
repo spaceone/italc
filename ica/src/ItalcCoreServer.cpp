@@ -32,11 +32,12 @@
 #endif
 
 #include <QtCore/QCoreApplication>
-#include <QtCore/QDir>
 #include <QtNetwork/QHostInfo>
 
 #include "ItalcCoreServer.h"
+#include "DesktopAccessPermission.h"
 #include "DsaKey.h"
+#include "ItalcRfbExt.h"
 #include "LocalSystem.h"
 
 
@@ -95,7 +96,7 @@ int ItalcCoreServer::handleItalcClientMessage( socketDispatcher sock,
 		}
 		ItalcCore::Msg( &sdev, ItalcCore::UserInformation ).
 					addArg( "username", currentUsername ).
-					addArg( "homedir", QDir::homePath() ).
+					addArg( "homedir", user.homePath() ).
 									send();
 	}
 	else if( cmd == ItalcCore::ExecCmds )
@@ -208,6 +209,8 @@ int ItalcCoreServer::handleItalcClientMessage( socketDispatcher sock,
 	}
 	else if( cmd == ItalcCore::StartDemoServer )
 	{
+		ItalcCore::authenticationCredentials->setCommonSecret(
+									DsaKey::generateChallenge().toBase64() );
 		m_slaveManager.demoServerMaster()->start(
 			msgIn.arg( "sourceport" ).toInt(),
 			msgIn.arg( "destinationport" ).toInt() );
@@ -244,6 +247,8 @@ int ItalcCoreServer::handleItalcClientMessage( socketDispatcher sock,
 
 bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 {
+	QMutexLocker l( &m_dataMutex );
+
 	// find out IP of host - needed at several places
 	const int MAX_HOST_LEN = 255;
 	char host[MAX_HOST_LEN+1];
@@ -257,6 +262,11 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 	QMap<QString, QVariant> supportedAuthTypes;
 	supportedAuthTypes["ItalcAuthDSA"] = ItalcAuthDSA;
 	supportedAuthTypes["ItalcAuthHostBased"] = ItalcAuthHostBased;
+	if( ItalcCore::authenticationCredentials->hasCredentials(
+									AuthenticationCredentials::CommonSecret ) )
+	{
+		supportedAuthTypes["ItalcAuthCommonSecret"] = ItalcAuthCommonSecret;
+	}
 	sdev.write( supportedAuthTypes );
 
 	uint32_t result = rfbVncAuthFailed;
@@ -268,6 +278,8 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 				"client chose unsupported authentication type!" );
 		return result;
 	}
+
+	const QString username = sdev.read().toString();
 
 	switch( chosen )
 	{
@@ -288,6 +300,18 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 		case ItalcAuthDSA:
 			if( doKeyBasedAuth( sdev, host ) )
 			{
+				if( DesktopAccessPermission(
+						DesktopAccessPermission::KeyAuthentication ).
+							ask( username, host ) )
+				{
+					result = rfbVncAuthOK;
+				}
+			}
+			break;
+
+		case ItalcAuthCommonSecret:
+			if( doCommonSecretAuth( sdev ) )
+			{
 				result = rfbVncAuthOK;
 			}
 			break;
@@ -305,6 +329,8 @@ bool ItalcCoreServer::authSecTypeItalc( socketDispatcher sd, void *user )
 		{
 			errorMsgAuth( host );
 		}
+		qWarning() << "ItalcCoreServer::authSecTypeItalc(): failed "
+						"authenticating client" << host;
 		return false;
 	}
 
@@ -335,6 +361,7 @@ bool ItalcCoreServer::doKeyBasedAuth( SocketDevice &sdev, const QString &host )
 	// get user-role
 	const ItalcCore::UserRoles urole =
 				static_cast<ItalcCore::UserRoles>( sdev.read().toInt() );
+#if 0
 	if( ItalcCore::role != ItalcCore::RoleOther &&
 		host != QHostAddress( QHostAddress::LocalHost ).toString() )
 	{
@@ -358,6 +385,7 @@ bool ItalcCoreServer::doKeyBasedAuth( SocketDevice &sdev, const QString &host )
 			}
 		}
 	}
+#endif
 
 	// now try to verify received signed data using public key of the user
 	// under which the client claims to run
@@ -380,6 +408,7 @@ bool ItalcCoreServer::doHostBasedAuth( const QString &host )
 
 	if( m_allowedIPs.isEmpty() )
 	{
+		qWarning() << "ItalcCoreServer: empty list of allowed IPs";
 		return false;
 	}
 
@@ -411,6 +440,22 @@ bool ItalcCoreServer::doHostBasedAuth( const QString &host )
 	qWarning() << "ItalcCoreServer::doHostBasedAuth() failed for host " << host;
 
 	// host-based authentication failed
+	return false;
+}
+
+
+
+
+bool ItalcCoreServer::doCommonSecretAuth( SocketDevice &sdev )
+{
+	qDebug() << "ItalcCoreServer: doing common secret auth";
+
+	const QString secret = sdev.read().toString();
+	if( secret == ItalcCore::authenticationCredentials->commonSecret() )
+	{
+		return true;
+	}
+
 	return false;
 }
 

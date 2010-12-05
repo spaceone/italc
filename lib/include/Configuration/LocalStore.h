@@ -27,6 +27,7 @@
 
 #include "Configuration/Store.h"
 
+class QSettings;
 
 namespace Configuration
 {
@@ -34,11 +35,15 @@ namespace Configuration
 class LocalStore : public Store
 {
 public:
-	LocalStore( Scope _scope );
+	LocalStore( Scope scope );
 
-	virtual void load( Object * _obj );
-	virtual void flush( Object * _obj );
+	virtual void load( Object *obj );
+	virtual void flush( Object *obj );
+	virtual bool isWritable() const;
 
+
+private:
+	QSettings *createSettingsObject() const;
 } ;
 
 }

@@ -33,6 +33,10 @@
 #include "Logger.h"
 #include "LocalSystem.h"
 
+#ifdef ITALC_BUILD_WIN32
+#include "3rdparty/XEventLog.h"
+#include "3rdparty/XEventLog.cpp"
+#endif
 
 Logger::LogLevel Logger::logLevel = Logger::LogLevelDefault;
 Logger *Logger::instance = NULL;
@@ -40,7 +44,9 @@ QMutex Logger::logMutex( QMutex::Recursive );
 Logger::LogLevel Logger::lastMsgLevel = Logger::LogLevelNothing;
 QString Logger::lastMsg;
 int Logger::lastMsgCount = 0;
-
+#ifdef ITALC_BUILD_WIN32
+CXEventLog *Logger::winEventLog = NULL;
+#endif
 
 Logger::Logger( const QString &appName ) :
 	m_appName( appName ),
@@ -53,6 +59,13 @@ Logger::Logger( const QString &appName ) :
 	initLogFile();
 
 	qInstallMsgHandler( qtMsgHandler );
+
+#ifdef ITALC_BUILD_WIN32
+	if( ItalcCore::config->logToWindowsEventLog() )
+	{
+		winEventLog = new CXEventLog( appName.toUtf8().constData() );
+	}
+#endif
 
 	QString user = LocalSystem::User::loggedOnUser().name();
 
@@ -75,6 +88,8 @@ Logger::Logger( const QString &appName ) :
 Logger::~Logger()
 {
 	LogStream() << "Shutdown";
+
+	instance = NULL;
 
 	delete m_logFile;
 }
@@ -101,6 +116,7 @@ void Logger::initLogFile()
 	logPath = logPath + QDir::separator();
 	m_logFile = new QFile( logPath + QString( "%1.log" ).arg( m_appName ) );
 	m_logFile->open( QFile::WriteOnly | QFile::Append | QFile::Unbuffered );
+	m_logFile->setPermissions( QFile::ReadOwner | QFile::WriteOwner );
 }
 
 
@@ -176,6 +192,22 @@ void Logger::log( LogLevel ll, const QString &msg )
 				lastMsgCount = 0;
 			}
 			instance->outputMessage( formatMessage( ll, msg ) );
+#ifdef ITALC_BUILD_WIN32
+			WORD wtype = -1;
+			switch( ll )
+			{
+				case LogLevelCritical:
+				case LogLevelError: wtype = EVENTLOG_ERROR_TYPE; break;
+				case LogLevelWarning: wtype = EVENTLOG_WARNING_TYPE; break;
+				//case LogLevelInfo: wtype = EVENTLOG_INFORMATION_TYPE; break;
+				default:
+					break;
+			}
+			if( winEventLog != NULL && wtype > 0 )
+			{
+				winEventLog->Write( wtype, msg.toUtf8().constData() );
+			}
+#endif
 			lastMsg = msg;
 			lastMsgLevel = ll;
 		}
@@ -205,11 +237,17 @@ void Logger::outputMessage( const QString &msg )
 {
 	QMutexLocker l( &logMutex );
 
-	m_logFile->write( msg.toUtf8() );
-	m_logFile->flush();
+	if( m_logFile )
+	{
+		m_logFile->write( msg.toUtf8() );
+		m_logFile->flush();
+	}
 
-	fprintf( stderr, "%s", msg.toUtf8().constData() );
-	fflush( stderr );
+	if( !ItalcCore::config || ItalcCore::config->logToStdErr() )
+	{
+		fprintf( stderr, "%s", msg.toUtf8().constData() );
+		fflush( stderr );
+	}
 }
 
 

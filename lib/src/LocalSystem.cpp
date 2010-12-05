@@ -39,6 +39,7 @@
 #include <shlobj.h>
 #include <wtsapi32.h>
 #include <sddl.h>
+#include <userenv.h>
 #include <lm.h>
 
 
@@ -320,6 +321,41 @@ User User::loggedOnUser()
 
 
 
+QString User::homePath() const
+{
+	QString homePath = QDir::homePath();
+
+#ifdef ITALC_BUILD_WIN32
+	LocalSystem::Process userProcess(
+				LocalSystem::Process::findProcessId( QString(), -1, this ) );
+	HANDLE hToken;
+	if( OpenProcessToken( userProcess.processHandle(),
+									MAXIMUM_ALLOWED, &hToken ) )
+	{
+		CHAR userProfile[MAX_PATH];
+		DWORD size = MAX_PATH;
+		if( GetUserProfileDirectory( hToken, userProfile, &size ) )
+		{
+			homePath = userProfile;
+			CloseHandle( hToken );
+		}
+		else
+		{
+			ilog_failedf( "GetUserProfileDirectory()", "%d", GetLastError() );
+		}
+	}
+	else
+	{
+		ilog_failedf( "OpenProcessToken()", "%d", GetLastError() );
+	}
+#endif
+
+	return homePath;
+}
+
+
+
+
 void User::lookupNameAndDomain()
 {
 	if( !m_name.isEmpty() && !m_domain.isEmpty() )
@@ -493,7 +529,7 @@ Process::~Process()
 
 #ifdef ITALC_BUILD_WIN32
 static DWORD findProcessId_WTS( const QString &processName, DWORD sessionId,
-															User *processOwner )
+													const User *processOwner )
 {
 	PWTS_PROCESS_INFO pProcessInfo = NULL;
 	DWORD processCount = 0;
@@ -543,15 +579,15 @@ static DWORD findProcessId_WTS( const QString &processName, DWORD sessionId,
 #include <tlhelp32.h>
 
 static DWORD findProcessId_TH32( const QString &processName, DWORD sessionId,
-															User *processOwner )
+													const User *processOwner )
 {
-	DWORD pid = 0;
+	DWORD pid = -1;
 	PROCESSENTRY32 procEntry;
 
 	HANDLE hSnap = CreateToolhelp32Snapshot( TH32CS_SNAPPROCESS, 0 );
 	if( hSnap == INVALID_HANDLE_VALUE )
 	{
-		return 0;
+		return -1;
 	}
 
 	procEntry.dwSize = sizeof( PROCESSENTRY32 );
@@ -559,7 +595,7 @@ static DWORD findProcessId_TH32( const QString &processName, DWORD sessionId,
 	if( !Process32First( hSnap, &procEntry ) )
 	{
 		CloseHandle( hSnap );
-		return 0;
+		return -1;
 	}
 
 	do
@@ -596,7 +632,7 @@ static DWORD findProcessId_TH32( const QString &processName, DWORD sessionId,
 
 
 int Process::findProcessId( const QString &processName,
-							int sessionId, User *processOwner )
+							int sessionId, const User *processOwner )
 {
 	LogStream( Logger::LogLevelDebug )
 			<< "Process::findProcessId("
@@ -605,7 +641,7 @@ int Process::findProcessId( const QString &processName,
 				<< processOwner
 			<< ")";
 
-	int pid = 0;
+	int pid = -1;
 #ifdef ITALC_BUILD_WIN32
 	pid = findProcessId_WTS( processName, sessionId, processOwner );
 	ilogf( Debug, "findProcessId_WTS(): %d", pid );
@@ -902,7 +938,7 @@ void logonUser( const QString & _uname, const QString & _passwd,
 
 QString Path::expand( QString path )
 {
-	return QDTNS( path.replace( "$HOME", QDir::homePath() ).
+	QString p = QDTNS( path.replace( "$HOME", QDir::homePath() ).
 						replace( "%HOME%", QDir::homePath() ).
 						replace( "$PROFILE", QDir::homePath() ).
 						replace( "%PROFILE%", QDir::homePath() ).
@@ -914,32 +950,88 @@ QString Path::expand( QString path )
 						replace( "$TEMP", QDir::tempPath() ).
 						replace( "%TMP%", QDir::tempPath() ).
 						replace( "%TEMP%", QDir::tempPath() ) );
+	// remove duplicate directory separators - however skip the first two chars
+	// as they might specify an UNC path on Windows
+	if( p.length() > 3 )
+	{
+		return p.left( 2 ) + p.mid( 2 ).replace(
+									QString( "%1%1" ).arg( QDir::separator() ),
+									QDir::separator() );
+	}
+	return p;
 }
+
+
+
+
+QString Path::shrink( QString path )
+{
+	if( QFileInfo( path ).isDir() )
+	{
+		// we replace parts of the path with strings returned by
+		// personalConfigDataPath() & friends which always return a path with
+		// a trailing dir separator - therefore add one so we don't miss a
+		// replace
+		path += QDir::separator();
+	}
+	path = QDTNS( path );
+#ifdef ITALC_BUILD_WIN32
+	const Qt::CaseSensitivity cs = Qt::CaseInsensitive;
+	const QString envVar = "%%1%\\";
+#else
+	const Qt::CaseSensitivity cs = Qt::CaseSensitive;
+	const QString envVar = "$%1/";
+#endif
+	if( path.startsWith( personalConfigDataPath(), cs ) )
+	{
+		path.replace( personalConfigDataPath(), envVar.arg( "APPDATA" ) );
+	}
+	else if( path.startsWith( systemConfigDataPath(), cs ) )
+	{
+		path.replace( systemConfigDataPath(), envVar.arg( "GLOBALAPPDATA" ) );
+	}
+	else if( path.startsWith( QDTNS( QDir::homePath() ), cs ) )
+	{
+		path.replace( QDTNS( QDir::homePath() ), envVar.arg( "HOME" ) );
+	}
+	else if( path.startsWith( QDTNS( QDir::tempPath() ), cs ) )
+	{
+		path.replace( QDTNS( QDir::tempPath() ), envVar.arg( "TEMP" ) );
+	}
+
+	return QDTNS( path.replace( QString( "%1%1" ).
+								arg( QDir::separator() ), QDir::separator() ) );
+}
+
 
 
 
 bool Path::ensurePathExists( const QString &path )
 {
-	if( path.isEmpty() || QDir( path ).exists() )
+	const QString expandedPath = expand( path );
+
+	if( path.isEmpty() || QDir( expandedPath ).exists() )
 	{
 		return true;
 	}
 
-	QString p = QDir( path ).absolutePath();
-	if( !QFileInfo( path ).isDir() )
-	{
-		p = QFileInfo( path ).absolutePath();
-	}
+	qDebug() << "LocalSystem::Path::ensurePathExists(): creating "
+				<< path << "=>" << expandedPath;
+
+	QString p = expandedPath;
+
 	QStringList dirs;
 	while( !QDir( p ).exists() && !p.isEmpty() )
 	{
 		dirs.push_front( QDir( p ).dirName() );
 		p.chop( dirs.front().size() + 1 );
 	}
+
 	if( !p.isEmpty() )
 	{
 		return QDir( p ).mkpath( dirs.join( QDir::separator() ) );
 	}
+
 	return false;
 }
 

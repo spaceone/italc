@@ -22,9 +22,9 @@
  *
  */
 
-#include <QtCore/QLocale>
-#include <QtCore/QTranslator>
-#include <QtGui/QMessageBox>
+#include <italcconfig.h>
+
+#include <QtCore/QProcessEnvironment>
 #include <QtGui/QApplication>
 
 #include "Configuration/XmlStore.h"
@@ -51,24 +51,30 @@ int main( int argc, char **argv )
 		return 0;
 	}
 
+#ifdef ITALC_BUILD_LINUX
+	QApplication app( argc, argv,
+			QProcessEnvironment::systemEnvironment().contains( "DISPLAY" ) );
+#else
 	QApplication app( argc, argv );
+#endif
 
 	ItalcCore::init();
 
 	Logger l( "ItalcManagementConsole" );
 
-	app.connect( &app, SIGNAL( lastWindowClosed() ), SLOT( quit() ) );
-
-	const QString loc = QLocale::system().name().left( 2 );
-
-	foreach( const QString & qm, QStringList()
-												<< loc + "-core"
-												<< loc
-												<< "qt_" + loc )
+	if( !ItalcConfiguration().isStoreWritable() &&
+			ItalcCore::config->logLevel() < Logger::LogLevelDebug )
 	{
-		QTranslator * tr = new QTranslator( &app );
-		tr->load( QString( ":/resources/%1.qm" ).arg( qm ) );
-		app.installTranslator( tr );
+		ImcCore::criticalMessage( MainWindow::tr( "Configuration not writable" ),
+			MainWindow::tr( "The local configuration backend reported that the "
+							"configuration is not writable! Please run the iTALC "
+							"Management Console with higher privileges." ) );
+		return -1;
+	}
+
+	if( app.type() != QApplication::Tty )
+	{
+		app.connect( &app, SIGNAL( lastWindowClosed() ), SLOT( quit() ) );
 	}
 
 	// parse arguments
@@ -77,23 +83,23 @@ int main( int argc, char **argv )
 
 	while( argc > 1 && argIt.hasNext() )
 	{
-		const QString & a = argIt.next();
-		if( ( a == "-apply" || a == "-a" ) && argIt.hasNext() )
+		const QString a = argIt.next().toLower();
+		if( ( a == "-applysettings" || a == "-a" ) && argIt.hasNext() )
 		{
 			const QString file = argIt.next();
 			Configuration::XmlStore xs( Configuration::XmlStore::System, file );
 
 			if( ImcCore::applyConfiguration( ItalcConfiguration( &xs ) ) )
 			{
-				QMessageBox::information( NULL,
-					app.tr( "iTALC Management Console" ),
-					app.tr( "All settings were applied successfully." ) );
+				ImcCore::informationMessage(
+					MainWindow::tr( "iTALC Management Console" ),
+					MainWindow::tr( "All settings were applied successfully." ) );
 			}
 			else
 			{
-				QMessageBox::critical( NULL,
-					app.tr( "iTALC Management Console" ),
-					app.tr( "An error occured while applying settings!" ) );
+				ImcCore::criticalMessage(
+					MainWindow::tr( "iTALC Management Console" ),
+					MainWindow::tr( "An error occured while applying settings!" ) );
 			}
 
 			// remove temporary file
@@ -101,12 +107,88 @@ int main( int argc, char **argv )
 
 			return 0;
 		}
+		else if( a == "-listconfig" || a == "-l" )
+		{
+			ImcCore::listConfiguration( *ItalcCore::config );
+
+			return 0;
+		}
+		else if( a == "-setconfigvalue" || a == "-s" )
+		{
+			if( !argIt.hasNext() )
+			{
+				qCritical( "No configuration property specified!" );
+				return -1;
+			}
+			QString prop = argIt.next();
+			QString value;
+			if( !argIt.hasNext() )
+			{
+				if( !prop.contains( '=' ) )
+				{
+					qCritical() << "No value for property" << prop << "specified!";
+					return -1;
+				}
+				else
+				{
+					value = prop.section( '=', -1, -1 );
+					prop = prop.section( '=', 0, -2 );
+				}
+			}
+			else
+			{
+				value = argIt.next();
+			}
+			const QString key = prop.section( '/', -1, -1 );
+			const QString parentKey = prop.section( '/', 0, -2 );
+
+			ItalcCore::config->setValue( key, value, parentKey );
+
+			ImcCore::applyConfiguration( *ItalcCore::config );
+
+			return 0;
+		}
+		else if( a == "-importpublickey" || a == "-i" )
+		{
+			QString pubKeyFile;
+			if( !argIt.hasNext() )
+			{
+				QStringList l =
+					QDir::current().entryList( QStringList() << "*.key.txt",
+												QDir::Files | QDir::Readable );
+				if( l.size() != 1 )
+				{
+					qCritical( "Please specify location of the public key "
+								"to import" );
+					return -1;
+				}
+				pubKeyFile = QDir::currentPath() + QDir::separator() +
+													l.first();
+				qWarning() << "No public key file specified. Trying to import "
+								"the public key file found at" << pubKeyFile;
+			}
+			else
+			{
+				pubKeyFile = argIt.next();
+			}
+
+			if( !ImcCore::importPublicKey( ItalcCore::RoleTeacher,
+											pubKeyFile, QString() ) )
+			{
+				LogStream( Logger::LogLevelInfo ) << "Public key import "
+													"failed";
+				return -1;
+			}
+			LogStream( Logger::LogLevelInfo ) << "Public key successfully "
+													"imported";
+			return 0;
+		}
 	}
 
 	// now create the main window
-	MainWindow mainWindow;
+	MainWindow *mainWindow = new MainWindow;
 
-	mainWindow.show();
+	mainWindow->show();
 
 	ilog( Info, "App.Exec" );
 

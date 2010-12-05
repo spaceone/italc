@@ -25,13 +25,12 @@
 #include <italcconfig.h>
 
 #include <QtCore/QProcess>
-#include <QtCore/QLocale>
-#include <QtCore/QTranslator>
 #include <QtGui/QApplication>
 #include <QtNetwork/QHostInfo>
 
 #include "WindowsService.h"
 #include "ItalcConfiguration.h"
+#include "ItalcCore.h"
 #include "ItalcCoreServer.h"
 #include "ItalcVncServer.h"
 #include "Logger.h"
@@ -71,17 +70,9 @@ bool eventFilter( void *msg, long *result )
 
 void initCoreApplication( QCoreApplication *app = NULL )
 {
-	const QString loc = QLocale::system().name().left( 2 );
-
-	foreach( const QString & qm, QStringList()
-												<< loc + "-core"
-												<< loc
-												<< "qt_" + loc )
-	{
-		QTranslator * tr = new QTranslator( app );
-		tr->load( QString( ":/resources/%1.qm" ).arg( qm ) );
-		app->installTranslator( tr );
-	}
+	// initialize global AuthenticationCredentials object so we can read and
+	// write a common secret later
+	ItalcCore::initAuthentication( AuthenticationCredentials::CommonSecret );
 
 	ItalcCore::serverPort = ItalcCore::config->coreServerPort();
 }
@@ -94,7 +85,7 @@ static bool parseArguments( const QStringList &arguments )
 	argIt.next();	// skip application file name
 	while( argIt.hasNext() )
 	{
-		const QString & a = argIt.next();
+		const QString & a = argIt.next().toLower();
 		if( a == "-port" && argIt.hasNext() )
 		{
 			ItalcCore::serverPort = argIt.next().toInt();
@@ -276,7 +267,7 @@ int main( int argc, char **argv )
 #ifdef ITALC_BUILD_WIN32
 		for( int i = 1; i < argc; ++i )
 		{
-			if( QString( argv[i] ).contains( "service" ) )
+			if( QString( argv[i] ).toLower().contains( "service" ) )
 			{
 				WindowsService winService( "icas", "-service", "iTALC Client",
 											QString(), argc, argv );
@@ -288,7 +279,7 @@ int main( int argc, char **argv )
 			}
 		}
 #endif
-		if( arg1 == "-slave" )
+		if( arg1.toLower() == "-slave" )
 		{
 			if( argc <= 2 )
 			{
@@ -326,7 +317,7 @@ int main( int argc, char **argv )
 			}
 			else if( arg2 == ItalcSlaveManager::IdDemoServer )
 			{
-				return runSlave<DemoServerSlave, QCoreApplication>( argc, argv );
+				return runSlave<DemoServerSlave, QApplication>( argc, argv );
 			}
 			else
 			{

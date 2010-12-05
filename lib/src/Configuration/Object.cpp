@@ -71,6 +71,16 @@ Object::Object( Store *store ) :
 
 
 
+Object::Object( const Object &obj ) :
+	m_store( NULL ),
+	m_customStore( false )
+{
+	*this = obj;
+}
+
+
+
+
 Object::~Object()
 {
 	if( !m_customStore )
@@ -78,6 +88,38 @@ Object::~Object()
 		delete m_store;
 	}
 }
+
+
+
+
+Object &Object::operator=( const Object &ref )
+{
+	if( !m_customStore && ref.m_store && !ref.m_customStore )
+	{
+		delete m_store;
+
+		switch( ref.m_store->backend() )
+		{
+			case Store::LocalBackend:
+				m_store = new LocalStore( ref.m_store->scope() );
+				break;
+			case Store::XmlFile:
+				m_store = new XmlStore( ref.m_store->scope() );
+				break;
+			case Store::NoBackend:
+				break;
+			default:
+				qCritical( "Invalid Store::Backend %d selected in "
+							"Object::operator=()", ref.m_store->backend() );
+			break;
+		}
+	}
+
+	m_data = ref.data();
+
+	return *this;
+}
+
 
 
 
@@ -152,28 +194,10 @@ QString Object::value( const QString & _key, const QString & _parentKey ) const
 
 
 
-void Object::setValue( const QString & key,
-			const QString & value,
-			const QString & parentKey )
-{
-	// recursively search through data maps and sub data-maps until
-	// all levels of the parentKey are processed
-	QStringList subLevels = parentKey.split( '/' );
-	DataMap data = setValueRecursive( m_data, subLevels, key, value );
-	if( data != m_data )
-	{
-		m_data = data;
-		emit configurationChanged();
-	}
-}
-
-
-
-
-Object::DataMap Object::setValueRecursive( DataMap data,
-									QStringList subLevels,
-									const QString &key,
-									const QString &value )
+static Object::DataMap setValueRecursive( Object::DataMap data,
+											QStringList subLevels,
+											const QString &key,
+											const QString &value )
 {
 	if( subLevels.isEmpty() )
 	{
@@ -202,13 +226,108 @@ Object::DataMap Object::setValueRecursive( DataMap data,
 	}
 	else
 	{
-		data[level] = DataMap();
+		data[level] = Object::DataMap();
 	}
 
 	data[level] = setValueRecursive( data[level].toMap(), subLevels, key, value );
 
 	return data;
 }
+
+
+
+
+void Object::setValue( const QString & key,
+			const QString & value,
+			const QString & parentKey )
+{
+	// recursively search through data maps and sub data-maps until
+	// all levels of the parentKey are processed
+	QStringList subLevels = parentKey.split( '/' );
+	DataMap data = setValueRecursive( m_data, subLevels, key, value );
+	if( data != m_data )
+	{
+		m_data = data;
+		emit configurationChanged();
+	}
+}
+
+
+
+
+static Object::DataMap removeValueRecursive( Object::DataMap data,
+											QStringList subLevels,
+											const QString &key )
+{
+	if( subLevels.isEmpty() )
+	{
+		// search for key in toplevel data map
+		if( data.contains( key ) )
+		{
+			data.remove( key );
+		}
+
+		return data;
+	}
+
+	const QString level = subLevels.takeFirst();
+	if( data.contains( level ) && data[level].type() == QVariant::Map )
+	{
+		data[level] = removeValueRecursive( data[level].toMap(), subLevels, key );
+	}
+
+	return data;
+}
+
+
+
+
+
+void Object::removeValue( const QString &key, const QString &parentKey )
+{
+	QStringList subLevels = parentKey.split( '/' );
+	DataMap data = removeValueRecursive( m_data, subLevels, key );
+	if( data != m_data )
+	{
+		m_data = data;
+		emit configurationChanged();
+	}
+}
+
+
+
+
+static void addSubObjectRecursive( const Object::DataMap &dataMap,
+									Object *_this,
+									const QString &parentKey )
+{
+	for( Object::DataMap::ConstIterator it = dataMap.begin();
+										it != dataMap.end(); ++it )
+	{
+		if( it.value().type() == QVariant::Map )
+		{
+			QString newParentKey = it.key();
+			if( !parentKey.isEmpty() )
+			{
+				newParentKey = parentKey + "/" + newParentKey;
+			}
+			addSubObjectRecursive( it.value().toMap(), _this, newParentKey );
+		}
+		else if( it.value().type() == QVariant::String )
+		{
+			_this->setValue( it.key(), it.value().toString(), parentKey );
+		}
+	}
+}
+
+
+
+void Object::addSubObject( Object *obj,
+								const QString &parentKey )
+{
+	addSubObjectRecursive( obj->data(), this, parentKey );
+}
+
 
 
 }

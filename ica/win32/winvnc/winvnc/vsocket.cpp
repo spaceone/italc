@@ -169,6 +169,14 @@ VSocket::~VSocket()
 }
 
 ////////////////////////////
+#include "httpconnect.h"
+VBool VSocket::Http_CreateConnect(const VString address)
+{
+	httpconnect http_class;
+	sock=http_class.Get_https_socket("443",address);
+	if (sock==0) return false;
+	else return true;
+}
 
 VBool
 VSocket::Create()
@@ -1109,10 +1117,12 @@ int val =0;
 		do {
 			FD_ZERO(&write_fds);
 			FD_SET(RemoteSocket, &write_fds);
-			tm.tv_sec = 0;
-			tm.tv_usec = 150;
+			tm.tv_sec = 1;
+			tm.tv_usec = 0;
 			count = select(RemoteSocket+ 1, NULL, &write_fds, NULL, &tm);
-		} while (count == 0&& !fShutdownOrdered);
+			aa++;
+		} while (count == 0&& !fShutdownOrdered && aa<20);
+		if (aa>=20) return 0;
 		if (fShutdownOrdered) return 0;
 		if (count < 0 || count > 1) return 0;
 		if (FD_ISSET(RemoteSocket, &write_fds)) 

@@ -26,24 +26,36 @@
 #include <italcconfig.h>
 
 #include "rfb/rfb.h"
+#include "rfb/dh.h"
 
 #ifdef ITALC_BUILD_WIN32
+
 #include <windows.h>
 #include <pthread.h>
+
+#else
+
+extern "C"
+{
+#include "d3des.h"
+}
+
 #endif
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QDir>
 #include <QtCore/QProcess>
 
 #include "ItalcVncServer.h"
+#include "ItalcConfiguration.h"
 #include "ItalcCore.h"
 #include "ItalcCoreServer.h"
+#include "ItalcRfbExt.h"
+#include "Logger.h"
 
 
 extern "C" int x11vnc_main( int argc, char * * argv );
 
-
-rfbClientPtr __client = NULL;
 
 
 qint64 libvncServerDispatcher( char * _buf, const qint64 _len,
@@ -103,7 +115,6 @@ static void lvs_italcSecurityHandler( struct _rfbClientRec *cl )
 	if( authOK )
 	{
 		cl->state = rfbClientRec::RFB_INITIALISATION;
-		__client = cl;
 	}
 	else
 	{
@@ -111,6 +122,110 @@ static void lvs_italcSecurityHandler( struct _rfbClientRec *cl )
     }
 }
 
+
+
+
+#ifndef ITALC_BUILD_WIN32
+
+static void vncDecryptBytes(unsigned char *where, const int length, const unsigned char *key)
+{
+	int i, j;
+	rfbDesKey((unsigned char*) key, DE1);
+	for (i = length - 8; i > 0; i -= 8) {
+		rfbDes(where + i, where + i);
+		for (j = 0; j < 8; j++)
+			where[i + j] ^= where[i + j - 8];
+	}
+	/* i = 0 */
+	rfbDes(where, where);
+	for (i = 0; i < 8; i++)
+		where[i] ^= key[i];
+}
+
+
+
+static bool authMsLogon( struct _rfbClientRec *cl )
+{
+	DiffieHellman dh;
+	char gen[8], mod[8], pub[8], resp[8];
+	char user[256], passwd[64];
+	unsigned char key[8];
+
+	dh.createKeys();
+	int64ToBytes( dh.getValue(DH_GEN), gen );
+	int64ToBytes( dh.getValue(DH_MOD), mod );
+	int64ToBytes( dh.createInterKey(), pub );
+	if( !rfbWriteExact( cl, gen, sizeof(gen) ) ) return false;
+	if( !rfbWriteExact( cl, mod, sizeof(mod) ) ) return false;
+	if( !rfbWriteExact( cl, pub, sizeof(pub) ) ) return false;
+	if( !rfbReadExact( cl, resp, sizeof(resp) ) ) return false;
+	if( !rfbReadExact( cl, user, sizeof(user) ) ) return false;
+	if( !rfbReadExact( cl, passwd, sizeof(passwd) ) ) return false;
+
+	int64ToBytes( dh.createEncryptionKey( bytesToInt64( resp ) ), (char*) key );
+	vncDecryptBytes( (unsigned char*) user, sizeof(user), key ); user[255] = '\0';
+	vncDecryptBytes( (unsigned char*) passwd, sizeof(passwd), key ); passwd[63] = '\0';
+
+	QProcess p;
+	p.start( "italc_auth_helper" );
+	p.waitForStarted();
+
+	QDataStream ds( &p );
+	ds << QString( user );
+	ds << QString( passwd );
+
+	p.closeWriteChannel();
+	p.waitForFinished();
+
+	if( p.exitCode() == 0 )
+	{
+		QProcess p;
+		p.start( "getent", QStringList() << "group" );
+		p.waitForFinished();
+
+		QStringList groups = QString( p.readAll() ).split( '\n' );
+		foreach( const QString &group, groups )
+		{
+			QStringList groupComponents = group.split( ':' );
+			if( groupComponents.size() == 4 &&
+				ItalcCore::config->logonGroups().
+										contains( groupComponents.first() ) &&
+				groupComponents.last().split( ',' ).contains( user ) )
+			{
+				return true;
+			}
+		}
+		qCritical() << "User not in a privileged group";
+	}
+	else
+	{
+		qCritical() << "ItalcAuthHelper failed:" << p.readAll().trimmed();
+	}
+
+	return false;
+}
+
+
+
+static void lvs_msLogonIISecurityHandler( struct _rfbClientRec *cl )
+{
+	bool authOK = authMsLogon( cl );
+
+	uint32_t result = authOK ? rfbVncAuthOK : rfbVncAuthFailed;
+	result = Swap32IfLE( result );
+	rfbWriteExact( cl, (char *) &result, 4 );
+
+	if( authOK )
+	{
+		cl->state = rfbClientRec::RFB_INITIALISATION;
+	}
+	else
+	{
+		rfbClientSendString( cl, (char *) "MS Logon II authentication failed!" );
+    }
+}
+
+#endif
 
 
 #ifdef ITALC_BUILD_WIN32
@@ -146,6 +261,24 @@ static void runX11vnc( QStringList cmdline, int port, bool plainVnc )
 		;
 
 #ifdef ITALC_BUILD_LINUX
+	if( !plainVnc && ItalcCore::config->isHttpServerEnabled() )
+	{
+		QDir d( QCoreApplication::applicationDirPath() );
+		if( d.cdUp() && d.cd( "share" ) && d.cd( "italc" ) &&
+				d.cd( "JavaViewer" ) )
+		{
+			cmdline << "-httpport"
+					<< QString::number( ItalcCore::config->httpServerPort() )
+					<< "-httpdir" << d.absolutePath();
+			LogStream() << "Using JavaViewer files at" << d.absolutePath();
+		}
+		else
+		{
+			qWarning( "Could not find JavaViewer files. "
+						"Check your iTALC installation!" );
+		}
+	}
+
 	// workaround for x11vnc when running in an NX session
 	foreach( const QString &s, QProcess::systemEnvironment() )
 	{
@@ -185,8 +318,17 @@ static void runX11vnc( QStringList cmdline, int port, bool plainVnc )
 	}
 
 	// register handler for iTALC's security-type
-	rfbSecurityHandler sh = { rfbSecTypeItalc, lvs_italcSecurityHandler, NULL };
-	rfbRegisterSecurityHandler( &sh );
+	rfbSecurityHandler shi = { rfbSecTypeItalc, lvs_italcSecurityHandler, NULL };
+	rfbRegisterSecurityHandler( &shi );
+
+#ifndef ITALC_BUILD_WIN32
+	// register handler for MS Logon II security type
+	rfbSecurityHandler shmsl = { rfbUltraVNC_MsLogonIIAuth, lvs_msLogonIISecurityHandler, NULL };
+	rfbRegisterSecurityHandler( &shmsl );
+
+	rfbSecurityHandler shmsl_legacy = { rfbMSLogon, lvs_msLogonIISecurityHandler, NULL };
+	rfbRegisterSecurityHandler( &shmsl_legacy );
+#endif
 
 	// run x11vnc-server
 	x11vnc_main( argc, argv );
@@ -204,9 +346,12 @@ void ItalcVncServer::runVncReflector( int srcPort, int dstPort )
 
 	QStringList args;
 	args << "-viewonly"
-		<< "-threads"
 		<< "-reflect"
 		<< QString( "localhost:%1" ).arg( srcPort );
+	if( ItalcCore::config->isDemoServerMultithreaded() )
+	{
+		args << "-threads";
+	}
 
 	while( 1 )
 	{

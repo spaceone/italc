@@ -128,7 +128,7 @@ vncProperties::Init(vncServer *server)
 	m_server = server;
 
 	// sf@2007 - Registry mode can still be forced for backward compatibility and OS version < Vista
-	m_fUseRegistry = ((myIniFile.ReadInt("admin", "UseRegistry", 0) == 1) ? TRUE : FALSE);
+	m_fUseRegistry = TRUE;//((myIniFile.ReadInt("admin", "UseRegistry", 0) == 1) ? TRUE : FALSE);
 
 	// Load the settings
 	if (m_fUseRegistry)
@@ -139,7 +139,7 @@ vncProperties::Init(vncServer *server)
 	// If the password is empty then always show a dialog
 	char passwd[MAXPWLEN];
 	m_server->GetPassword(passwd);
-	{
+	if(0){
 	    vncPasswd::ToText plain(passwd);
 	    if (strlen(plain) == 0)
 			 if (!m_allowproperties || !RunningAsAdministrator ()) {
@@ -344,7 +344,7 @@ vncProperties::ShowAdmin(BOOL show, BOOL usersettings)
 				    MAKEINTRESOURCE(IDD_PROPERTIES1), 
 				    NULL,
 				    (DLGPROC) DialogProc,
-				    (LONG) this);
+				    (LONG_PTR) this);
 
 				if (!m_returncode_valid)
 				    result = IDCANCEL;
@@ -395,10 +395,15 @@ vncProperties::ShowAdmin(BOOL show, BOOL usersettings)
 			}
 
 			// Load in all the settings
+			// If you run as service, you reload the saved settings before they are actual saved
+			// via runas.....
+			if (!vncService::RunningAsService())
+			{
 			if (m_fUseRegistry) 
 				Load(TRUE);
 			else
 				LoadFromIniFile();
+			}
 
 		}
 	}
@@ -1438,6 +1443,9 @@ vncProperties::InitPortSettings(HWND hwnd)
 		bConnectSock && !bAutoPort && !bValidDisplay);
 }
 
+#ifdef ULTRAVNC_ITALC_SUPPORT
+extern BOOL ultravnc_italc_load_int( LPCSTR valname, LONG *out );
+#endif
 
 // Functions to load & save the settings
 LONG
@@ -1447,6 +1455,13 @@ vncProperties::LoadInt(HKEY key, LPCSTR valname, LONG defval)
 	ULONG type = REG_DWORD;
 	ULONG prefsize = sizeof(pref);
 
+#ifdef ULTRAVNC_ITALC_SUPPORT
+	LONG out;
+	if( ultravnc_italc_load_int( valname, &out ) )
+	{
+		return out;
+	}
+#endif
 	if (RegQueryValueEx(key,
 		valname,
 		NULL,
@@ -1709,11 +1724,8 @@ vncProperties::Load(BOOL usersettings)
 	//vnclog.SetLevel(LoadInt(hkLocal, "DebugLevel", 0));
 
 	// Disable Tray Icon
-#ifdef ULTRAVNC_ITALC_SUPPORT
-	m_server->SetDisableTrayIcon(1);
-#else
-	m_server->SetDisableTrayIcon(LoadInt(hkLocal, "DisableTrayIcon", false));
-#endif
+	m_server->SetDisableTrayIcon(LoadInt(hkLocal, "DisableTrayIcon", false));
+
 	// Authentication required, loopback allowed, loopbackOnly
 
 	m_server->SetLoopbackOnly(LoadInt(hkLocal, "LoopbackOnly", false));
@@ -1745,11 +1757,7 @@ vncProperties::Load(BOOL usersettings)
 
 	if (m_server->LoopbackOnly()) m_server->SetLoopbackOk(true);
 	else m_server->SetLoopbackOk(LoadInt(hkLocal, "AllowLoopback", false));
-#ifdef ULTRAVNC_ITALC_SUPPORT
-	m_server->SetAuthRequired(0);
-#else
-	m_server->SetAuthRequired(LoadInt(hkLocal, "AuthRequired", true));
-#endif
+	m_server->SetAuthRequired(LoadInt(hkLocal, "AuthRequired", true));
 
 	m_server->SetConnectPriority(LoadInt(hkLocal, "ConnectPriority", 0));
 	if (!m_server->LoopbackOnly())
@@ -2306,11 +2314,7 @@ void vncProperties::LoadFromIniFile()
 
 	if (m_server->LoopbackOnly()) m_server->SetLoopbackOk(true);
 	else m_server->SetLoopbackOk(myIniFile.ReadInt("admin", "AllowLoopback", false));
-#ifdef ULTRAVNC_ITALC_SUPPORT
-	m_server->SetAuthRequired(0);
-#else
-	m_server->SetAuthRequired(myIniFile.ReadInt("admin", "AuthRequired", true));
-#endif
+	m_server->SetAuthRequired(myIniFile.ReadInt("admin", "AuthRequired", true));
 
 	m_server->SetConnectPriority(myIniFile.ReadInt("admin", "ConnectPriority", 0));
 	if (!m_server->LoopbackOnly())

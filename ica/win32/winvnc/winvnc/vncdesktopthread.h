@@ -51,7 +51,7 @@ public:
 		cpuUsage=0;
 		MIN_UPDATE_INTERVAL=33;
 		MIN_UPDATE_INTERVAL_MAX=500;
-		MIN_UPDATE_INTERVAL_MIN=33;
+		MIN_UPDATE_INTERVAL_MIN=10;
 		// replaced by macpu ini setting
 		MAX_CPU_USAGE=20;
 	};
@@ -90,7 +90,7 @@ protected:
 	HMODULE user32;
 	_GetCursorInfo MyGetCursorInfo;
 	bool XRichCursorEnabled;
-	DWORD newtick,oldtick;
+	DWORD newtick,oldtick,oldtick2;
 
 	DWORD m_lLastMouseMoveTime;
 	HMODULE  hUser32;

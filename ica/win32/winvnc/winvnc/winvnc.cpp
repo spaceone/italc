@@ -47,8 +47,6 @@
 #include "vncOSVersion.h"
 #include "videodriver.h"
 
-#include <ctype.h>
-
 #ifdef IPP
 void InitIpp();
 #endif
@@ -113,6 +111,7 @@ void Open_forum();
 HINSTANCE	hInstResDLL;
 BOOL SPECIAL_SC_EXIT=false;
 BOOL SPECIAL_SC_PROMPT=false;
+BOOL G_HTTP;
 BOOL multi=false;
 
 void Enable_softwareCAD_elevated();
@@ -143,8 +142,8 @@ Myinit(HINSTANCE hInstance)
     //Load all messages from ressource file
     Load_Localization(hInstResDLL) ;
 	vnclog.SetFile();
-	vnclog.SetMode(1);
-	vnclog.SetLevel(LL_INTWARN);
+//	vnclog.SetMode(2);
+//	vnclog.SetLevel(10);
 
 #ifdef _DEBUG
 	{
@@ -185,7 +184,15 @@ Myinit(HINSTANCE hInstance)
 // routine or, under NT, the main service routine.
 int WINAPI WinMainVNC(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int iCmdShow)
 {
+	// make vnc last service to stop
 	SetProcessShutdownParameters(0x100,false);
+	// handle dpi on aero
+	HMODULE hUser32 = LoadLibrary(_T("user32.dll"));
+	typedef BOOL (*SetProcessDPIAwareFunc)();
+	SetProcessDPIAwareFunc setDPIAware = (SetProcessDPIAwareFunc)GetProcAddress(hUser32, "SetProcessDPIAware");
+	if (setDPIAware) setDPIAware();
+	FreeLibrary(hUser32);
+
 #ifdef IPP
 	InitIpp();
 #endif
@@ -326,6 +333,7 @@ int WINAPI WinMainVNC(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLi
 
 		if (strncmp(&szCmdLine[i], winvncInstallServiceHelper, strlen(winvncInstallServiceHelper)) == 0)
 			{
+				//Sleeps are realy needed, else runas fails...
 				Sleep(3000);
 				Set_install_service_as_admin();
 				return 0;
@@ -538,6 +546,13 @@ int WINAPI WinMainVNC(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLi
 		{
 			multi=true;
 			i+=strlen(winvncmulti);
+			continue;
+		}
+
+		if (strncmp(&szCmdLine[i], winvnchttp, strlen(winvnchttp)) == 0)
+		{
+			G_HTTP=true;
+			i+=strlen(winvnchttp);
 			continue;
 		}
 

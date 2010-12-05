@@ -118,7 +118,7 @@ static void saveXmlTree( const Object::DataMap & _dataMap,
 
 void XmlStore::flush( Object * _obj )
 {
-	QDomDocument doc( "ItalcConfigXmlStore" );
+	QDomDocument doc( "ItalcXmlStore" );
 	const Object::DataMap & data = _obj->data();
 
 	QDomElement root = doc.createElement( configurationNameFromScope() );
@@ -133,15 +133,25 @@ void XmlStore::flush( Object * _obj )
 		return;
 	}
 
-	QString xml = "<?xml version=\"1.0\"?>\n" + doc.toString( 2 );
-	QTextStream( &outfile ) << xml;
-	qDebug() << xml;
+	QTextStream( &outfile ) << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	outfile.write( doc.toByteArray( 2 ) );
+	//qDebug() << doc.toString( 2 );
 }
 
 
 
 
-QString XmlStore::configurationFilePath()
+bool XmlStore::isWritable() const
+{
+	return QFileInfo( m_file.isEmpty() ?
+							configurationFilePath() : m_file ).isWritable();
+
+}
+
+
+
+
+QString XmlStore::configurationFilePath() const
 {
 	QString base;
 	switch( scope() )
@@ -154,6 +164,9 @@ QString XmlStore::configurationFilePath()
 			break;
 		case System:
 			base = LocalSystem::Path::systemConfigDataPath();
+			break;
+		default:
+			base = QDir::homePath();
 			break;
 	}
 

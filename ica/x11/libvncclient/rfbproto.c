@@ -567,6 +567,7 @@ ReadSupportedSecurityType(rfbClient* client, uint32_t *result, rfbBool subAuth)
         rfbClientLog("%d) Received security type %d\n", loop, tAuth[loop]);
         if (flag) continue;
         if (tAuth[loop]==rfbVncAuth || tAuth[loop]==rfbNoAuth || tAuth[loop]==rfbMSLogon ||
+			( tAuth[loop] == rfbUltraVNC_MsLogonIIAuth && isLogonAuthenticationEnabled( client ) ) ||
 			tAuth[loop] == rfbSecTypeItalc ||
             (!subAuth && (tAuth[loop]==rfbTLS || tAuth[loop]==rfbVeNCrypt)))
         {
@@ -1010,6 +1011,11 @@ InitialiseRFBConnection(rfbClient* client)
     if (!rfbHandleAuthResult(client)) return FALSE;
     break;
 
+  case rfbUltraVNC_MsLogonIIAuth:
+    handleMsLogonIIAuth( client );
+    if (!rfbHandleAuthResult(client)) return FALSE;
+    break;
+
   default:
     rfbClientLog("Unknown authentication scheme from VNC server: %d\n",
 	    (int)authScheme);
@@ -1241,6 +1247,9 @@ SetFormatAndEncodings(rfbClient* client)
   if (se->nEncodings < MAX_ENCODINGS)
     encs[se->nEncodings++] = rfbClientSwap32IfLE(rfbEncodingServerIdentity);
 
+  /* xvp */
+  if (se->nEncodings < MAX_ENCODINGS)
+    encs[se->nEncodings++] = rfbClientSwap32IfLE(rfbEncodingXvp);
 
   /* client extensions */
   for(e = rfbClientExtensions; e; e = e->next)
@@ -1409,6 +1418,37 @@ rfbBool PermitServerInput(rfbClient* client, int enabled)
     msg.status = (enabled ? 1 : 0);
     msg.pad = 0;
     return  (WriteToRFBServer(client, (char *)&msg, sz_rfbSetServerInputMsg) ? TRUE : FALSE);
+}
+
+
+/*
+ * send xvp client message
+ * A client supporting the xvp extension sends this to request that the server initiate
+ * a clean shutdown, clean reboot or abrupt reset of the system whose framebuffer the
+ * client is displaying.
+ *
+ * only version 1 is defined in the protocol specs
+ *
+ * possible values for code are:
+ *   rfbXvp_Shutdown
+ *   rfbXvp_Reboot
+ *   rfbXvp_Reset
+ */
+
+rfbBool SendXvpMsg(rfbClient* client, uint8_t version, uint8_t code)
+{
+    rfbXvpMsg xvp;
+
+    if (!SupportsClient2Server(client, rfbXvp)) return TRUE;
+    xvp.type = rfbXvp;
+    xvp.pad = 0;
+    xvp.version = version;
+    xvp.code = code;
+
+    if (!WriteToRFBServer(client, (char *)&xvp, sz_rfbXvpMsg))
+        return FALSE;
+
+    return TRUE;
 }
 
 
@@ -2000,6 +2040,24 @@ HandleRFBServerMessage(rfbClient* client)
           break;
       }
       break;
+  }
+
+  case rfbXvp:
+  {
+    if (!ReadFromRFBServer(client, ((char *)&msg) + 1,
+                           sz_rfbXvpMsg -1))
+      return FALSE;
+
+    SetClient2Server(client, rfbXvp);
+    /* technically, we only care what we can *send* to the server
+     * but, we set Server2Client Just in case it ever becomes useful
+     */
+    SetServer2Client(client, rfbXvp);
+
+    if(client->HandleXvpMsg)
+      client->HandleXvpMsg(client, msg.xvp.version, msg.xvp.code);
+
+    break;
   }
 
   case rfbResizeFrameBuffer:

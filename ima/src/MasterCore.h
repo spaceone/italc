@@ -28,7 +28,6 @@
 
 class ItalcVncConnection;
 class ItalcCoreConnection;
-class ItalcSlaveManager;
 class ClassroomManager;
 class GlobalConfig;
 class PersonalConfig;
@@ -45,8 +44,6 @@ namespace MasterCore
 
 	extern GlobalConfig * globalConfig;
 	extern PersonalConfig * personalConfig;
-
-	extern ItalcSlaveManager *italcSlaveManager;
 
 	extern ItalcCoreConnection * localCoreService;
 

@@ -37,11 +37,16 @@ class MainWindow;
 namespace ImcCore
 {
 	bool applyConfiguration( const ItalcConfiguration &config );
+	void listConfiguration( const ItalcConfiguration &config );
 
 	bool createKeyPair( ItalcCore::UserRole role, const QString &destDir );
+	bool importPublicKey( ItalcCore::UserRole role,
+							const QString &pubKey, const QString &destDir );
 
 	QString icaFilePath();
 
+	void informationMessage( const QString &title, const QString &msg );
+	void criticalMessage( const QString &title, const QString &msg );
 
 	// UI objects
 	extern MainWindow * mainWindow;
