@@ -1,3 +1,27 @@
+/////////////////////////////////////////////////////////////////////////////
+//  Copyright (C) 2002-2010 Ultr@VNC Team Members. All Rights Reserved.
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 2 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
+//  USA.
+//
+// If the source code for the program is not available from the place from
+// which you received this file, check 
+// http://www.uvnc.com/
+//
+////////////////////////////////////////////////////////////////////////////
+
 #include "vncdesktopthread.h"
 #include "vncOSVersion.h"
 bool g_DesktopThread_running;
@@ -288,6 +312,14 @@ vncDesktopThread::PollWindow(rfb::Region2D &rgn, HWND hwnd)
 
 bool vncDesktopThread::handle_display_change(HANDLE& threadHandle, rfb::Region2D& rgncache, rfb::SimpleUpdateTracker& clipped_updates, rfb::ClippedUpdateTracker& updates)
 {
+	BOOL screensize_changed=false;
+	if (first_run)
+	{
+		first_run=false;
+		m_desktop->m_displaychanged=true;
+		screensize_changed=true;
+	}
+
 	if (vncService::InputDesktopSelected()==2)
 	{
 		m_desktop->m_buffer.WriteMessageOnScreen("UltraVVNC running as application doesn't \nhave permission to acces \nUAC protected windows.\n\nThe is screen is locked until the remote user \nunlock this window");
@@ -320,7 +352,7 @@ bool vncDesktopThread::handle_display_change(HANDLE& threadHandle, rfb::Region2D
 				if (vncService::InputDesktopSelected()==0)						vnclog.Print(LL_INTERR, VNCLOG("++++InputDesktopSelected \n"));
 				
 				
-				BOOL screensize_changed=false;
+				//BOOL screensize_changed=false;
 				BOOL monitor_changed=false;
 				rfbServerInitMsg oldscrinfo;
 				//*******************************************************
@@ -544,8 +576,6 @@ bool vncDesktopThread::handle_display_change(HANDLE& threadHandle, rfb::Region2D
 					OutputDebugString(szText);		
 			#endif*/
 			}// end lock
-
-
 	}
 
 	return true;
@@ -629,6 +659,7 @@ vncDesktopThread::run_undetached(void *arg)
 	// INIT
 	//*******************************************************
 	capture=true;
+	first_run=true;
 	vnclog.Print(LL_INTERR, VNCLOG("Hook changed 1\n"));
 	// Save the thread's "home" desktop, under NT (no effect under 9x)
 	m_desktop->m_home_desktop = GetThreadDesktop(GetCurrentThreadId());
@@ -653,6 +684,8 @@ vncDesktopThread::run_undetached(void *arg)
 	// Succeeded to initialise ok
 	ReturnVal(0);
 
+	//telling running viewers to wait until first update
+	m_server->InitialUpdate(false);
 	// sf@2003 - Done here to take into account if the driver is actually activated
 	m_desktop->InitHookSettings(); 
 
@@ -728,7 +761,9 @@ vncDesktopThread::run_undetached(void *arg)
 											{
 												m_desktop->m_buffer.GrabRegion(rgncache,false,true);
 											}
-	///
+	//telling running viewers to wait until first update, done
+	m_server->InitialUpdate(true);
+
 	while (looping && !fShutdownOrdered)
 	{		
 		DWORD result;

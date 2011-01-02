@@ -34,7 +34,6 @@
 #include "ItalcCoreServer.h"
 #include "ItalcVncServer.h"
 #include "Logger.h"
-#include "Debug.h"
 
 #include "AccessDialogSlave.h"
 #include "DemoClientSlave.h"
@@ -65,17 +64,6 @@ bool eventFilter( void *msg, long *result )
 }
 
 #endif
-
-
-
-void initCoreApplication( QCoreApplication *app = NULL )
-{
-	// initialize global AuthenticationCredentials object so we can read and
-	// write a common secret later
-	ItalcCore::initAuthentication( AuthenticationCredentials::CommonSecret );
-
-	ItalcCore::serverPort = ItalcCore::config->coreServerPort();
-}
 
 
 
@@ -156,9 +144,13 @@ static int runCoreServer( int argc, char **argv )
 {
 	QCoreApplication app( argc, argv );
 
-	initCoreApplication( &app );
+	ItalcCore::init();
 
 	Logger l( "ItalcCoreServer" );
+
+	// initialize global AuthenticationCredentials object so we can read and
+	// write a common secret later
+	ItalcCore::initAuthentication( AuthenticationCredentials::CommonSecret );
 
 	if( !parseArguments( app.arguments() ) )
 	{
@@ -220,9 +212,13 @@ static int runSlave( int argc, char **argv )
 {
 	Application app( argc, argv );
 
-	initCoreApplication( &app );
+	ItalcCore::init();
 
 	Logger l( "Italc" + SlaveClass::slaveName() );
+
+	// initialize global AuthenticationCredentials object so we can read and
+	// write a common secret later
+	ItalcCore::initAuthentication( AuthenticationCredentials::CommonSecret );
 
 	if( !parseArguments( app.arguments() ) )
 	{
@@ -257,8 +253,6 @@ int main( int argc, char **argv )
 	hAppInstance = GetModuleHandle( NULL );
 	mainthreadId = GetCurrentThreadId();
 #endif
-
-	ItalcCore::init();
 
 	// decide in what mode to run
 	if( argc >= 2 )

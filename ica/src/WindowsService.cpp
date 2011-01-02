@@ -33,8 +33,6 @@
 
 #ifdef ITALC_BUILD_WIN32
 
-extern void initCoreApplication( QCoreApplication *app = NULL );
-
 
 class ItalcServiceSubProcess
 {
@@ -84,6 +82,17 @@ public:
 		}
 	}
 
+	bool isRunning() const
+	{
+		if( m_subProcessHandle &&
+			WaitForSingleObject( m_subProcessHandle, 5000 ) == WAIT_TIMEOUT )
+		{
+			return true;
+		}
+
+		return false;
+	}
+
 
 private:
 	HANDLE m_subProcessHandle;
@@ -128,12 +137,16 @@ bool WindowsService::evalArgs( int &argc, char **argv )
 
 	if( argv[1] == m_arg )
 	{
+		ItalcCore::init();
 		Logger l( "ItalcServiceMonitor" );
 		return runAsService();
 	}
 
 	QApplication app( argc, argv );
-	initCoreApplication( &app );
+
+	ItalcCore::init();
+
+	Logger l( "ItalcServiceControl" );
 
 	QStringList args = app.arguments();
 	args.removeFirst();
@@ -776,6 +789,12 @@ void WindowsService::monitorSessions()
 			{
 				italcProcess.start( sessionId );
 			}
+
+			oldSessionId = sessionId;
+		}
+		else if( italcProcess.isRunning() == false )
+		{
+			italcProcess.start( sessionId );
 			oldSessionId = sessionId;
 		}
 	}

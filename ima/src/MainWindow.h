@@ -90,17 +90,6 @@ public:
 		return m_remoteControlWidget != NULL;
 	}
 
-	const QString &username() const
-	{
-		return m_username;
-	}
-
-	const QString &password() const
-	{
-		return m_password;
-	}
-
-
 protected:
 	void keyPressEvent( QKeyEvent *e );
 
@@ -144,9 +133,6 @@ private:
 
 	QWidget * m_sideBarWidget;
 	int m_openedTabInSideBar;
-
-	QString m_username;
-	QString m_password;
 
 	QReadWriteLock m_rctrlLock;
 	RemoteControlWidget * m_remoteControlWidget;
