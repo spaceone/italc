@@ -7,14 +7,15 @@ QT4_TRANSLATIONS_FOR_QRC(${QRC_FILE} ${ica_SOURCES} ${ica_INCLUDES})
 ADD_DEFINITIONS(-DLIBVNCSERVER_PACKAGE_STRING="iTALC ${VERSION}")
 
 # build JavaViewer
-SET(VNCVIEWER_JAR ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer/VncViewer.jar)
+SET(JAVAVIEWER_DIR ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer)
+SET(VNCVIEWER_JAR ${JAVAVIEWER_DIR}/VncViewer.jar)
+FILE(MAKE_DIRECTORY ${JAVAVIEWER_DIR})
 
 IF(JAVA_COMPILE AND JAVA_ARCHIVE)
 
-	FILE(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer)
 	ADD_CUSTOM_COMMAND(OUTPUT ${VNCVIEWER_JAR}
-						COMMAND ${JAVA_COMPILE} -d ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/*.java
-						COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/JavaViewer && ${JAVA_ARCHIVE} cfm ${VNCVIEWER_JAR} ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/MANIFEST.MF OptionsFrame.class VncCanvas.class ButtonPanel.class FTPFrame.class SessionRecorder.class DH.class VncViewer.class DesCipher.class RecordingFrame.class FTPFrame$$StrComp.class RfbProto.class ClipboardFrame.class AuthPanel.class
+						COMMAND ${JAVA_COMPILE} -d ${JAVAVIEWER_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/*.java
+						COMMAND cd ${JAVAVIEWER_DIR} && ${JAVA_ARCHIVE} cfm ${VNCVIEWER_JAR} ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/MANIFEST.MF OptionsFrame.class VncCanvas.class ButtonPanel.class FTPFrame.class SessionRecorder.class DH.class VncViewer.class DesCipher.class RecordingFrame.class FTPFrame$$StrComp.class RfbProto.class ClipboardFrame.class AuthPanel.class
 						DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/* )
 	INSTALL(FILES ${VNCVIEWER_JAR} ${CMAKE_CURRENT_SOURCE_DIR}/JavaViewer/index.vnc DESTINATION ${CMAKE_INSTALL_PREFIX}/share/italc/JavaViewer)
 
@@ -54,11 +55,11 @@ SET(x11vnc_SOURCES
 		${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver/zrleoutstream.c
 		${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver/zrlepalettehelper.c
 		${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver/tight.c
-		${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver/d3des.c
-		${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver/vncauth.c
+		${CMAKE_CURRENT_SOURCE_DIR}/x11/common/d3des.c
+		${CMAKE_CURRENT_SOURCE_DIR}/x11/common/vncauth.c
 		${CMAKE_CURRENT_SOURCE_DIR}/x11/x11vnc.c )
 
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/x11 ${CMAKE_CURRENT_SOURCE_DIR}/x11/x11vnc ${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/x11 ${CMAKE_CURRENT_SOURCE_DIR}/x11/x11vnc ${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncserver ${CMAKE_CURRENT_SOURCE_DIR}/x11/common)
 ADD_DEFINITIONS(-DVNCSHARED -DFOREVER -DNOREPEAT=0 -DNOPW=1 -DREMOTE_CONTROL=0 -DEXTERNAL_COMMANDS=0 -DFILEXFER=0 -DNOGUI -DSMALL_FOOTPRINT=3)
 
 IF(ITALC_BUILD_LINUX)

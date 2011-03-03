@@ -1,7 +1,7 @@
 /*
- * snapshot_list.cpp - implementation of snapshot-list for side-bar
+ * PasswordDialog.cpp - dialog for querying logon credentials
  *
- * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010-2011 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -22,6 +22,10 @@
  *
  */
 
+#include <italcconfig.h>
+
+#include <QtGui/QPushButton>
+
 #include "PasswordDialog.h"
 #include "LocalSystem.h"
 
@@ -34,11 +38,23 @@ PasswordDialog::PasswordDialog( QWidget *parent ) :
 {
 	ui->setupUi( this );
 
-	ui->username->setText( LocalSystem::User::loggedOnUser().name() );
-	if( !username().isEmpty() )
+	const LocalSystem::User loggedOnUser = LocalSystem::User::loggedOnUser();
+	QString userName = loggedOnUser.name();
+#ifdef ITALC_BUILD_WIN32
+	if( !userName.isEmpty() && !loggedOnUser.domain().isEmpty() )
+	{
+		userName = loggedOnUser.domain() + "\\" + userName;
+	}
+#endif
+
+	ui->username->setText( userName );
+
+	if( !userName.isEmpty() )
 	{
 		ui->password->setFocus();
 	}
+
+	updateOkButton();
 }
 
 
@@ -60,5 +76,13 @@ QString PasswordDialog::username() const
 QString PasswordDialog::password() const
 {
 	return ui->password->text();
+}
+
+
+
+void PasswordDialog::updateOkButton()
+{
+	ui->buttonBox->button( QDialogButtonBox::Ok )->
+					setEnabled( !username().isEmpty() && !password().isEmpty() );
 }
 

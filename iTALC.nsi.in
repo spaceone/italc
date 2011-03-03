@@ -145,7 +145,7 @@ Section "iTALC Service"
 SectionIn RO
 ${INSTALL_TYPE}
 ExecWait '"$INSTDIR\ica.exe" -quiet -unregisterservice'
-SetOverwrite ifnewer
+SetOverwrite on
 SetOutPath "$INSTDIR"
 # DLLs
 File "${DLLDIR}\QtCore4.dll"
@@ -251,7 +251,7 @@ Delete "$INSTDIR\vnchooks.dll"
 Delete "$INSTDIR\imc.exe"
 Delete "$INSTDIR\italc.exe"
 Delete "$INSTDIR\README.TXT"
-Delete "$INSTDIR\italc_core.dll"
+Delete "$INSTDIR\ItalcCore.dll"
 Delete "$INSTDIR\QtGui4.dll"
 Delete "$INSTDIR\uninstall.exe"
 Delete "$INSTDIR\iTALC website.url"

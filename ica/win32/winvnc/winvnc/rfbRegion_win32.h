@@ -43,6 +43,7 @@ namespace rfb {
 
     Region(const Region& r);
     Region &operator=(const Region& src);
+	bool IsPtInRegion(int x, int y);
 
     ~Region();
 
@@ -87,6 +88,6 @@ namespace rfb {
 
 };
 
-#endif
+#endif /* __RFB_REGION_WIN32_INCLUDED__ */
 
 

@@ -40,6 +40,7 @@ class vncBuffer;
 // Includes
 
 #include "stdhdrs.h"
+#include "vncencoder.h"
 #include "rfbRegion.h"
 #include "rfbRect.h"
 #include "rfb.h"
@@ -125,7 +126,7 @@ protected:
 	BOOL			m_multi_monitor;
 
 	// Modif sf@2002 - Scaling
-	UINT		m_ScaledSize;
+	int			m_ScaledSize;
 	UINT		m_nScale;
 	BYTE		*m_ScaledBuff;
 
@@ -139,7 +140,7 @@ public:
 	rfbServerInitMsg	m_scrinfo;
 	// vncEncodeMgr reads data from back buffer directly when encoding
 	BYTE		*m_backbuff;
-	UINT		m_backbuffsize;
+	int			m_backbuffsize;
 	// CACHE RDV
 	BYTE		*m_cachebuff;
 	BYTE		*m_mainbuff;
@@ -149,6 +150,9 @@ public:
 
 	// sf@2005 - Grey palette
 	BOOL m_fGreyPalette;
+	bool m_videodriverused;
+	void VideDriverUsed(bool enabled);
+	bool VideDriverUsed();
 };
 
 #endif // _WINVNC_VNCBUFFER

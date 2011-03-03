@@ -372,8 +372,6 @@ void Set_Safemode()
 					strcat(stringvalue," /safeboot:network");
 					SetFileAttributes(systemdrive,FILE_ATTRIBUTE_NORMAL);
 					WritePrivateProfileString("operating systems",drivepath,stringvalue,systemdrive);
-					DWORD err=GetLastError();
-
 
 			}
 			else
@@ -390,7 +388,7 @@ void Set_Safemode()
 			strcpy(parameters,"/set safeboot network");
 			SHELLEXECUTEINFO shExecInfo;
 			shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-			shExecInfo.fMask = NULL;
+			shExecInfo.fMask = 0;
 			shExecInfo.hwnd = GetForegroundWindow();
 			shExecInfo.lpVerb = "runas";
 			shExecInfo.lpFile = exe_file_name;
@@ -420,7 +418,7 @@ void Set_Safemode()
 						strcpy(parameters,"/set safeboot network");
 						SHELLEXECUTEINFO shExecInfo;
 						shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-						shExecInfo.fMask = NULL;
+						shExecInfo.fMask = 0;
 						shExecInfo.hwnd = GetForegroundWindow();
 						shExecInfo.lpVerb = "runas";
 						shExecInfo.lpFile = exe_file_name;
@@ -443,7 +441,7 @@ void Set_Safemode()
 					strcpy(parameters,"/set safeboot network");
 					SHELLEXECUTEINFO shExecInfo;
 					shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-					shExecInfo.fMask = NULL;
+					shExecInfo.fMask = 0;
 					shExecInfo.hwnd = GetForegroundWindow();
 					shExecInfo.lpVerb = "runas";
 					shExecInfo.lpFile = exe_file_name;
@@ -466,7 +464,7 @@ void Set_Safemode()
 				strcpy(parameters,"/set safeboot network");
 				SHELLEXECUTEINFO shExecInfo;
 				shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-				shExecInfo.fMask = NULL;
+				shExecInfo.fMask = 0;
 				shExecInfo.hwnd = GetForegroundWindow();
 				shExecInfo.lpVerb = "runas";
 				shExecInfo.lpFile = exe_file_name;
@@ -500,6 +498,59 @@ BOOL reboot()
 	return TRUE;
 }
 
+BOOL Force_reboot()
+{
+	HANDLE hToken; 
+    TOKEN_PRIVILEGES tkp; 
+    if (OpenProcessToken(    GetCurrentProcess(),
+                TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, 
+                & hToken)) 
+		{
+			LookupPrivilegeValue(    NULL,  SE_SHUTDOWN_NAME,  & tkp.Privileges[0].Luid);          
+			tkp.PrivilegeCount = 1; 
+			tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED; 
+			if(AdjustTokenPrivileges(    hToken,  FALSE,  & tkp,  0,  (PTOKEN_PRIVILEGES)NULL,  0))
+				{
+					OSVERSIONINFO OSversion;	
+					OSversion.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
+					GetVersionEx(&OSversion);
+					if(OSversion.dwMajorVersion<6)
+					{
+					ExitWindowsEx(EWX_REBOOT|EWX_FORCEIFHUNG, 0);
+					}
+					else
+					{
+					ExitWindowsEx(EWX_REBOOT|EWX_FORCE, 0);
+					}
+				}
+		}
+	return TRUE;
+}
+
+void Reboot_with_force_reboot()
+{
+	Force_reboot();
+
+}
+
+void Reboot_with_force_reboot_elevated()
+{
+
+	char exe_file_name[MAX_PATH];
+	GetModuleFileName(0, exe_file_name, MAX_PATH);
+	SHELLEXECUTEINFO shExecInfo;
+	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
+	shExecInfo.fMask = NULL;
+	shExecInfo.hwnd = GetForegroundWindow();
+	shExecInfo.lpVerb = "runas";
+	shExecInfo.lpFile = exe_file_name;
+	shExecInfo.lpParameters = "-rebootforce";
+	shExecInfo.lpDirectory = NULL;
+	shExecInfo.nShow = SW_HIDE;
+	shExecInfo.hInstApp = NULL;
+	ShellExecuteEx(&shExecInfo);
+}
+
 void Reboot_in_safemode()
 {
 	if (CreateServiceSafeBootKey()) 
@@ -517,7 +568,7 @@ void Reboot_in_safemode_elevated()
 	GetModuleFileName(0, exe_file_name, MAX_PATH);
 	SHELLEXECUTEINFO shExecInfo;
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -576,7 +627,7 @@ void Restore_safemode()
 			strcpy(parameters,"/deletevalue safeboot");
 			SHELLEXECUTEINFO shExecInfo;
 			shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-			shExecInfo.fMask = NULL;
+			shExecInfo.fMask = 0;
 			shExecInfo.hwnd = GetForegroundWindow();
 			shExecInfo.lpVerb = "runas";
 			shExecInfo.lpFile = exe_file_name;
@@ -605,7 +656,7 @@ void Restore_safemode()
 						strcpy(parameters,"/deletevalue safeboot");
 						SHELLEXECUTEINFO shExecInfo;
 						shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-						shExecInfo.fMask = NULL;
+						shExecInfo.fMask = 0;
 						shExecInfo.hwnd = GetForegroundWindow();
 						shExecInfo.lpVerb = "runas";
 						shExecInfo.lpFile = exe_file_name;
@@ -628,7 +679,7 @@ void Restore_safemode()
 					strcpy(parameters,"/deletevalue safeboot");
 					SHELLEXECUTEINFO shExecInfo;
 					shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-					shExecInfo.fMask = NULL;
+					shExecInfo.fMask = 0;
 					shExecInfo.hwnd = GetForegroundWindow();
 					shExecInfo.lpVerb = "runas";
 					shExecInfo.lpFile = exe_file_name;
@@ -651,7 +702,7 @@ void Restore_safemode()
 				strcpy(parameters,"/deletevalue safeboot");
 				SHELLEXECUTEINFO shExecInfo;
 				shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-				shExecInfo.fMask = NULL;
+				shExecInfo.fMask = 0;
 				shExecInfo.hwnd = GetForegroundWindow();
 				shExecInfo.lpVerb = "runas";
 				shExecInfo.lpFile = exe_file_name;
@@ -811,7 +862,7 @@ void delete_softwareCAD_elevated()
 	GetModuleFileName(0, exe_file_name, MAX_PATH);
 	SHELLEXECUTEINFO shExecInfo;
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -833,7 +884,7 @@ void Enable_softwareCAD_elevated()
 	GetModuleFileName(0, exe_file_name, MAX_PATH);
 	SHELLEXECUTEINFO shExecInfo;
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;

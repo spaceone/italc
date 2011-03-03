@@ -2,7 +2,7 @@
  * Client.cpp - implementation of class Client which represents data and
  *              functionality of a client
  *
- * Copyright (c) 2004-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2004-2011 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -222,7 +222,7 @@ void Client::displayTextMessage( const QString & _msg )
 
 
 
-void Client::logonUser( const QString & _username, const QString & _password,
+/*void Client::logonUser( const QString & _username, const QString & _password,
 			const QString & _domain )
 {
 	m_coreConn->logonUser( _username, _password, _domain );

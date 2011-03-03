@@ -55,7 +55,7 @@ Set_settings_as_admin(char *mycommand)
 
 	SHELLEXECUTEINFO shExecInfo;
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -100,8 +100,8 @@ LONG AllowShutdown=1;
 LONG AllowProperties=1;
 LONG AllowEditClients=1;
 
-LONG FileTransferEnabled;
-LONG FTUserImpersonation;
+LONG FileTransferEnabled=0;
+LONG FTUserImpersonation=1;
 LONG BlankMonitorEnabled=1;
 LONG BlankInputsOnly=0; //PGM
 LONG DefaultScale=1;
@@ -136,7 +136,7 @@ char passwd[MAXPWLEN];
 
 LONG TurboMode=1;
 LONG PollUnderCursor=0;
-LONG PollForeground=1;
+LONG PollForeground=0;
 LONG PollFullScreen=1;
 LONG PollConsoleOnly=0;
 LONG PollOnEventOnly=0;
@@ -146,6 +146,7 @@ LONG Virtual;
 LONG SingleWindow=0;
 char SingleWindowName[32];
 char path[512];
+LONG MaxCpu=40;
 
 //adzm 2010-05-30 - dsmplugin config
 char DSMPluginConfig[512];
@@ -153,14 +154,12 @@ char DSMPluginConfig[512];
 
 LONG Primary=1;
 LONG Secondary=0;
-LONG MaxCpu=40;
 
 
 BUseRegistry = myIniFile_In.ReadInt("admin", "UseRegistry", 0);
 if (!myIniFile_Out.WriteInt("admin", "UseRegistry", BUseRegistry))
 {
 		//error
-		DWORD error=GetLastError();
 		MessageBox(NULL,"Permission denied:Uncheck [_] Protect my computer... in run as dialog or use user with write permission." ,myIniFile_Out.myInifile,MB_ICONERROR);
 }
 
@@ -334,6 +333,9 @@ myIniFile_Out.WriteInt("poll", "EnableVirtual", Virtual);
 myIniFile_Out.WriteInt("poll", "SingleWindow", SingleWindow);
 myIniFile_Out.WriteString("poll", "SingleWindowName", SingleWindowName);
 
+MaxCpu=myIniFile_In.ReadInt("poll", "MaxCpu",MaxCpu);
+myIniFile_Out.WriteInt("poll", "MaxCpu", MaxCpu);
+
 DeleteFile(lpCmdLine);
 }
 void
@@ -351,7 +353,7 @@ Set_stop_service_as_admin()
 	SHELLEXECUTEINFO shExecInfo;
 
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -380,7 +382,7 @@ Set_start_service_as_admin()
 	SHELLEXECUTEINFO shExecInfo;
 
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -419,7 +421,7 @@ Set_install_service_as_admin()
 	SHELLEXECUTEINFO shExecInfo;
 
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -440,7 +442,7 @@ Set_uninstall_service_as_admin()
 	SHELLEXECUTEINFO shExecInfo;
 
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -461,7 +463,7 @@ winvncSecurityEditorHelper_as_admin()
 	SHELLEXECUTEINFO shExecInfo;
 
 	shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
-	shExecInfo.fMask = NULL;
+	shExecInfo.fMask = 0;
 	shExecInfo.hwnd = GetForegroundWindow();
 	shExecInfo.lpVerb = "runas";
 	shExecInfo.lpFile = exe_file_name;
@@ -557,9 +559,8 @@ bool GetServiceName(TCHAR *pszAppPath, TCHAR *pszServiceName)
                                 // match given application name against executable path in the service config
                                 std::string servicePath(pServiceConfig->lpBinaryPathName);
                                 make_upper(servicePath);
-                                if (servicePath.find(appPath.c_str()) != -1)
+                                if (servicePath.find(appPath.c_str()) != (size_t) -1)
                                 {
-                                    bResult = true;
                                     strncpy(pszServiceName, pServices[i].lpServiceName, 256);
                                     pszServiceName[255] = 0;
                                 }

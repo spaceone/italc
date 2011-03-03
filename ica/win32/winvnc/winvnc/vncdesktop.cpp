@@ -49,6 +49,7 @@
 #include "vncdesktopthread.h"
 #include "common/win32_helpers.h"
 #include <algorithm>
+#include <commctrl.h>
 
 
 
@@ -88,6 +89,7 @@ DWORD WINAPI BlackWindow(LPVOID lpParam);
 // 
 // 
 //
+ extern bool G_USE_PIXEL;
 PixelCaptureEngine::~PixelCaptureEngine()
 {
 }
@@ -97,6 +99,8 @@ PixelCaptureEngine::PixelCaptureEngine()
 		if (OSversion()==2) m_bIsVista=true;
 		else 
 			m_bIsVista=false;
+/*		if (G_USE_PIXEL)
+			m_bIsVista=false;*/
 	}
 void
 PixelCaptureEngine::PixelCaptureEngineInit(HDC rootdc, HDC memdc, HBITMAP membitmap, bool bCaptureAlpha, void *dibbits, int bpp, int bpr)
@@ -134,9 +138,6 @@ PixelCaptureEngine::CapturePixel(int x, int y)
 		if (m_bIsVista)
 		{
 				COLORREF cr = 0;
-				int tx = x - m_rect.tl.x;
-				int ty = y - m_rect.tl.y;
-
 				unsigned int index = (m_bytesPerRow * y) + (m_bytesPerPixel * x);
 				memcpy(&cr, ((char*)m_DIBbits)+index, m_bytesPerPixel);
 
@@ -201,6 +202,41 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 			    vnclog.Print(LL_INTINFO, VNCLOG("### PixelsGrid %d created !\n"), i);
 			}
 		}
+
+		hDeskWnd = GetDesktopWindow();
+		HWND hWnd = FindWindow(_T("Progman"), _T("Program Manager"));
+		if (NULL != hWnd) hWnd = FindWindowEx(hWnd, NULL, "SHELLDLL_DefView", "");
+		if (NULL != hWnd) hWnd = FindWindowEx(hWnd, NULL, "SysListView32", "FolderView");
+		hFolderView=hWnd;
+		if (NULL != hWnd)
+			{
+			nr_rects = SendMessage(hWnd, LVM_GETITEMCOUNT, 0, 0);
+			if (nr_rects>200) nr_rects=200;
+			for (int j = 0; j < nr_rects; j++)
+                {
+					DWORD pid;
+					GetWindowThreadProcessId(hWnd, &pid);
+					HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
+					RECT* ptritemrect;
+					RECT itemrect;
+					ptritemrect = (RECT*)VirtualAllocEx(hProcess, NULL, sizeof(RECT), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+					if (ptritemrect == NULL) {
+					   
+					} else {
+					SendMessage(hWnd, LVM_GETITEMRECT, j, (LPARAM)ptritemrect);
+#ifdef _X64
+					SIZE_T copied = 0;
+#else
+					DWORD copied = 0;
+#endif
+					ReadProcessMemory(hProcess, (void*)ptritemrect, (LPVOID)&itemrect, sizeof(itemrect), &copied);
+					rfb::Rect wrect = rfb::Rect(itemrect).intersect(m_Cliprect);
+					iconregion.assign_union(wrect);
+					VirtualFreeEx(hProcess, ptritemrect, 0, MEM_RELEASE);
+					}
+				}
+			}
+
 	}
 
 	PixelEngine.PixelCaptureEngineInit(m_hrootdc, m_hmemdc, m_membitmap, m_fCaptureAlphaBlending && !m_Black_window_active, 
@@ -209,7 +245,6 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 	// vnclog.Print(LL_INTINFO, VNCLOG("### Polling Grid %d - SubGrid %d\n"), nZone, m_nGridCycle); 
 	GridsList::iterator iGrid;
 	int nGridPos = (nZone * PIXEL_BLOCK_SIZE / GRID_OFFSET) + m_nGridCycle;
-	int nIndex = nGridPos;
 
 	iGrid = m_lGridsList.begin();
     std::advance(iGrid, nGridPos);
@@ -230,7 +265,8 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 	}
 
 	int nOffset = GRID_OFFSET * m_nGridCycle;
-	HWND hDeskWnd = GetDesktopWindow();
+
+
 
 	PixelEngine.CaptureRect(rect);
 	if (PixelEngine.m_bIsVista) returnvalue=true;
@@ -245,26 +281,31 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 		for (x = rect.tl.x; x < (rect.br.x -nOffset); x += PIXEL_BLOCK_SIZE)
 		{
 			xo = x + nOffset;
-
+			bool AlreadyInRegion=rgn.IsPtInRegion(xo,yo);
 			// Read the pixel's color on the screen
-			COLORREF PixelColor = PixelEngine.CapturePixel(xo, yo);
+			COLORREF PixelColor = 0;
+			//if (!AlreadyInRegion || fInitGrid ) 
+				PixelColor =PixelEngine.CapturePixel(xo, yo);
 
 			// If init list
 			if (fInitGrid)
 			{
+				int off = iPixelColor - pThePixelGrid->begin();
 			   pThePixelGrid->push_back(PixelColor);
+				iPixelColor = pThePixelGrid->begin() + off;
 			   // vnclog.Print(LL_INTINFO, VNCLOG("### PixelsGrid Init : Pixel xo=%d - yo=%d - C=%ld\n"), xo, yo, (long)PixelColor); 
 			   continue;
 			}
 
 //			vnclog.Print(LL_INTINFO, VNCLOG("### GetPixel %i\n"),OSversion());
 			// If the pixel has changed
-			if (*iPixelColor != PixelColor )
+			if (*iPixelColor != PixelColor)
 			{
 				change_found=1;
 				// Save the new Pixel in the list
 				*iPixelColor = PixelColor;
-
+				if (!AlreadyInRegion)
+				{
 				// Then find the corresponding Window
 				POINT point;
 				RECT rect;
@@ -276,12 +317,30 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 				// REM: We don't use ChildWindowFromPoint because we don't want of hidden windows
 				HWND hwnd = WindowFromPoint(point);
 
+				/// This is the fulldesktop, cause a full scan performance !
+				if (hFolderView == hwnd && hFolderView)
+				{
+					if (iconregion.IsPtInRegion(xo,yo))rgn.assign_union(iconregion);
+					else
+					{
+							rect.left=xo-PIXEL_BLOCK_SIZE-m_ScreenOffsetx;
+							rect.right=xo+PIXEL_BLOCK_SIZE-m_ScreenOffsetx;
+							rect.top=yo-PIXEL_BLOCK_SIZE-m_ScreenOffsetx;
+							rect.bottom=yo+PIXEL_BLOCK_SIZE-m_ScreenOffsetx;
+							rfb::Rect wrect = rfb::Rect(rect).intersect(m_Cliprect);
+							if (!wrect.is_empty())
+							{
+								rgn.assign_union(wrect);
+							}
+					}
+				}
 				// Look if we've already detected this window
-                if (hwnd != hDeskWnd)
-                {
-				    // Look if we've already detected this window
-                    if (std::find(m_lWList.begin(), m_lWList.end(), hwnd) == m_lWList.end())
-                    {			    
+				if (hwnd != hDeskWnd  && hFolderView != hwnd)
+				{
+					
+					// Look if we've already detected this window
+					if (std::find(m_lWList.begin(), m_lWList.end(), hwnd) == m_lWList.end())
+					{			    
 						// Add the corresponding rect to the cache region 
 						if (GetWindowRect(hwnd, &rect))
 							{
@@ -293,12 +352,20 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 								rfb::Rect wrect = rfb::Rect(rect).intersect(m_Cliprect);
 								if (!wrect.is_empty())
 									{
+/*#ifdef _DEBUG
+					char			szText[256];
+					DWORD error=GetLastError();
+					sprintf(szText,"CheckRect 222222 ++++++++++++++++ %i %i %i %i  \n",wrect.tl.x,wrect.br.x,wrect.tl.y,wrect.br.y);
+					SetLastError(0);
+					OutputDebugString(szText);		
+#endif*/
 										rgn.assign_union(wrect);
 										m_lWList.insert(hwnd);
 									}
 							}
 					}
 				}
+			}
 			}
 
 			++iPixelColor; // Next PixelColor in the list
@@ -314,7 +381,7 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 	}
 	else
 	{
-		idle_counter++;
+		idle_counter=idle_counter+5;
 	}
 	if (idle_counter>20) 
 	{
@@ -322,7 +389,7 @@ bool vncDesktop::FastDetectChanges(rfb::Region2D &rgn, rfb::Rect &rect, int nZon
 		Sleep (idle_counter);
 	}
 	// 250 increased to 500, possible even 1000 will still have a good reaction time
-	if (idle_counter>500) idle_counter=500;
+	if (idle_counter>1000) idle_counter=1000;
 	///////////////////////
 
 	if (fIncCycle)
@@ -422,6 +489,8 @@ vncDesktop::vncDesktop()
 	old_Blockinput=2;
 	old_Blockinput1=2;
 	old_Blockinput2=2;
+	nr_rects=0;
+	iconregion.clear();
 }
 
 vncDesktop::~vncDesktop()
@@ -433,7 +502,6 @@ vncDesktop::~vncDesktop()
 	if(m_thread != NULL)
 	{
 		StopInitWindowthread();
-		vncDesktopThread *thread=(vncDesktopThread*)m_thread;
 		int counter=0;
 		while (g_DesktopThread_running!=false)
 		{
@@ -589,13 +657,16 @@ vncDesktop::Startup()
 			}
 		m_DIBbits=m_videodriver->myframebuffer;
 		pchanges_buf=m_videodriver->mypchangebuf;
+		m_buffer.VideDriverUsed(true);
 		InvalidateRect(NULL,NULL,TRUE);
 	}
     else if ((status = EnableOptimisedBlits()) != 0)
     {
 		vnclog.Print(LL_INTINFO, VNCLOG("EnableOptimisedBlits Failed\n"));
+		m_buffer.VideDriverUsed(false);
 		return status;
     }
+	else m_buffer.VideDriverUsed(false);
 
 	if ((status = SetPixFormat()) != 0)
 		{
@@ -855,7 +926,7 @@ vncDesktop::InitBitmap()
 					FillMemory(&devmode, sizeof(DEVMODE), 0);
 					devmode.dmSize = sizeof(DEVMODE);
 					devmode.dmDriverExtra = 0;
-					BOOL change = EnumDisplaySettings(NULL,ENUM_CURRENT_SETTINGS,&devmode);
+					/*BOOL change = */EnumDisplaySettings(NULL,ENUM_CURRENT_SETTINGS,&devmode);
 					devmode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
 					HMODULE hUser32=LoadLibrary("USER32");
 					if (hUser32) pd = (pEnumDisplayDevices)GetProcAddress( hUser32, "EnumDisplayDevicesA");
@@ -869,7 +940,7 @@ vncDesktop::InitBitmap()
 								INT devNum = 0;
 								BOOL result;
 								DriverFound=false;
-								while (result = (*pd)(NULL,devNum, &dd,0))
+								while ((result = (*pd)(NULL,devNum, &dd,0)))
 									{
 										if (strcmp((const char *)&dd.DeviceString[0], driverName) == 0)
 											{
@@ -882,7 +953,7 @@ vncDesktop::InitBitmap()
 									{
 										deviceName = (LPSTR)&dd.DeviceName[0];
 										m_hrootdc = CreateDC("DISPLAY",deviceName,NULL,NULL);
-										BOOL change = EnumDisplaySettings(deviceName,ENUM_CURRENT_SETTINGS,&devmode);
+										/*BOOL change = */EnumDisplaySettings(deviceName,ENUM_CURRENT_SETTINGS,&devmode);
 										m_ScreenOffsetx=devmode.dmPosition.x;
 										m_ScreenOffsety=devmode.dmPosition.y;
 										if (m_hrootdc) DriverType=MIRROR;
@@ -1589,6 +1660,8 @@ vncDesktop::CaptureMouse(BYTE *scrBuff, UINT scrBuffSize)
 					SelectObject(m_hmemdc, oldbitmap);
 					SelectObject(mdc1, oldbmp1);
 					SelectObject(mdc2, oldbmp2);
+					DeleteDC(mdc1);
+					DeleteDC(mdc2);
 			}
 		else
 			{
@@ -2312,7 +2385,7 @@ void vncDesktop::InitHookSettings()
 
 void vncDesktop::SetBlockInputState(bool newstate)
 {
-	CARD32 state;
+	CARD32 state = 0;
 	if (m_server->BlankMonitorEnabled())
     {
 		if (!m_server->BlankInputsOnly()) SetBlankMonitor(newstate);	        
