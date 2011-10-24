@@ -44,6 +44,7 @@
 #include <QtNetwork/QHostAddress>
 
 #include "MainWindow.h"
+#include "AboutDialog.h"
 #include "AuthenticationCredentials.h"
 #include "ClassroomManager.h"
 #include "DecoratedMessageBox.h"

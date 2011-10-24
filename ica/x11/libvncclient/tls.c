@@ -19,14 +19,20 @@
 
 #include <rfb/rfbclient.h>
 #include <errno.h>
+#ifdef WIN32
+#undef SOCKET
+#include <windows.h>           /* for Sleep() */
+#define sleep(X) Sleep(1000*X) /* MinGW32 has no sleep() */
+#include <winsock2.h>
+#define read(sock,buf,len) recv(sock,buf,len,0)
+#define write(sock,buf,len) send(sock,buf,len,0)
+#endif
 #include "tls.h"
 
 #ifdef LIBVNCSERVER_WITH_CLIENT_TLS
 
-static const int rfbCertTypePriority[] = { GNUTLS_CRT_X509, 0 };
-static const int rfbProtoPriority[]= { GNUTLS_TLS1_1, GNUTLS_TLS1_0, GNUTLS_SSL3, 0 };
-static const int rfbKXPriority[] = {GNUTLS_KX_DHE_DSS, GNUTLS_KX_RSA, GNUTLS_KX_DHE_RSA, GNUTLS_KX_SRP, 0};
-static const int rfbKXAnon[] = {GNUTLS_KX_ANON_DH, 0};
+static const char *rfbTLSPriority = "NORMAL:+DHE-DSS:+RSA:+DHE-RSA:+SRP";
+static const char *rfbAnonTLSPriority= "NORMAL:+ANON-DH";
 
 #define DH_BITS 1024
 static gnutls_dh_params_t rfbDHParams;
@@ -51,6 +57,33 @@ InitializeTLS(void)
   return TRUE;
 }
 
+/*
+ * On Windows, translate WSAGetLastError() to errno values as GNU TLS does it
+ * internally too. This is necessary because send() and recv() on Windows
+ * don't set errno when they fail but GNUTLS expects a proper errno value.
+ *
+ * Use gnutls_transport_set_global_errno() like the GNU TLS documentation
+ * suggests to avoid problems with different errno variables when GNU TLS and
+ * libvncclient are linked to different versions of msvcrt.dll.
+ */
+#ifdef WIN32
+static void WSAtoTLSErrno()
+{
+  switch(WSAGetLastError()) {
+  case WSAEWOULDBLOCK:
+    gnutls_transport_set_global_errno(EAGAIN);
+    break;
+  case WSAEINTR:
+    gnutls_transport_set_global_errno(EINTR);
+    break;
+  default:
+    gnutls_transport_set_global_errno(EIO);
+    break;
+  }
+}
+#endif
+
+
 static ssize_t
 PushTLS(gnutls_transport_ptr_t transport, const void *data, size_t len)
 {
@@ -63,7 +96,7 @@ PushTLS(gnutls_transport_ptr_t transport, const void *data, size_t len)
     if (ret < 0)
     {
 #ifdef WIN32
-      errno=WSAGetLastError();
+      WSAtoTLSErrno();
 #endif
       if (errno == EINTR) continue;
       return -1;
@@ -85,7 +118,7 @@ PullTLS(gnutls_transport_ptr_t transport, void *data, size_t len)
     if (ret < 0)
     {
 #ifdef WIN32
-      errno=WSAGetLastError();
+      WSAtoTLSErrno();
 #endif
       if (errno == EINTR) continue;
       return -1;
@@ -98,6 +131,7 @@ static rfbBool
 InitializeTLSSession(rfbClient* client, rfbBool anonTLS)
 {
   int ret;
+  const char *p;
 
   if (client->tlsSession) return TRUE;
 
@@ -107,14 +141,10 @@ InitializeTLSSession(rfbClient* client, rfbBool anonTLS)
     return FALSE;
   }
 
-  if ((ret = gnutls_set_default_priority(client->tlsSession)) < 0 ||
-      (ret = gnutls_kx_set_priority(client->tlsSession, anonTLS ? rfbKXAnon : rfbKXPriority)) < 0 ||
-      (ret = gnutls_certificate_type_set_priority(client->tlsSession, rfbCertTypePriority)) < 0 ||
-      (ret = gnutls_protocol_set_priority(client->tlsSession, rfbProtoPriority)) < 0)
+  if ((ret = gnutls_priority_set_direct(client->tlsSession,
+    anonTLS ? rfbAnonTLSPriority : rfbTLSPriority, &p)) < 0)
   {
-    FreeTLS(client);
-    rfbClientLog("Failed to set TLS priority: %s.\n", gnutls_strerror(ret));
-    return FALSE;
+    rfbClientLog("Warning: Failed to set TLS priority: %s (%s).\n", gnutls_strerror(ret), p);
   }
 
   gnutls_transport_set_ptr(client->tlsSession, (gnutls_transport_ptr_t)client);
@@ -192,6 +222,7 @@ ReadVeNCryptSecurityType(rfbClient* client, uint32_t *result)
         rfbClientLog("List of security types is ZERO. Giving up.\n");
         return FALSE;
     }
+
     if (count>sizeof(tAuth))
     {
         rfbClientLog("%d security types are too many; maximum is %d\n", count, sizeof(tAuth));

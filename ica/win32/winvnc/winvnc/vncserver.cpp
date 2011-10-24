@@ -242,6 +242,7 @@ vncServer::vncServer()
 	
 	//adzm 2010-05-12 - dsmplugin config
 	m_szDSMPluginConfig[0] = '\0';
+	OS_Shutdown=false;
 }
 
 vncServer::~vncServer()
@@ -810,6 +811,19 @@ bool vncServer::IsUltraVncViewer()
 	return false;
 }
 
+bool vncServer::AreThereMultipleViewers()
+{
+	vncClientList::iterator i;
+	omni_mutex_lock l(m_clientsLock);
+	int a=0;
+	for (i = m_authClients.begin(); i != m_authClients.end(); i++)
+	{	
+		a++;
+	}
+	if (a<=1) return false;
+	else return true;
+}
+
 
 void
 vncServer::KillAuthClients()
@@ -1184,7 +1198,7 @@ vncServer::RemoveClient(vncClientId clientid)
 		vnclog.Print(LL_STATE, VNCLOG("deleting desktop server\n"));
 
 		// sf@2007 - Do not lock/logoff even if required when WinVNC autorestarts (on desktop change (XP FUS / Vista))
-		if (!AutoRestartFlag())
+		if (!AutoRestartFlag() && !OS_Shutdown)
 		{
 			// Are there locksettings set?
 			if (LockSettings() == 1 || clearconsole)
@@ -2391,7 +2405,7 @@ BOOL vncServer::SetDSMPlugin(BOOL bForceReload)
 		strcat(szParams, ",");
 		strcat(szParams, vncService::RunningAsService() ? "server-svc" : "server-app");
 
-		//::MessageBox(NULL, szParams, "SetDSMPlugin info", MB_OK);
+		//::MessageBoxSecure(NULL, szParams, "SetDSMPlugin info", MB_OK);
 
 		vnclog.Print(LL_INTINFO, VNCLOG("$$$$$$$$$$ SetDSMPlugin - SetPluginParams call \n"));
 
@@ -2416,7 +2430,7 @@ BOOL vncServer::SetDSMPlugin(BOOL bForceReload)
 	}
 
 	/*
-	MessageBox(NULL, 
+	MessageBoxSecure(NULL, 
 	_T(_this->m_pDSMPlugin->DescribePlugin()),
 	_T("Plugin Description"), MB_OK | MB_ICONEXCLAMATION );
 	*/
@@ -2553,7 +2567,7 @@ void vncServer::AutoConnectRetry( )
 	if ( m_fAutoReconnect && !fShutdownOrdered)
 	{
 		vnclog.Print(LL_INTINFO, VNCLOG("AutoConnectRetry(): started\n"));
-		m_retry_timeout = SetTimer( NULL, 0, (1000*30), (TIMERPROC)_timerRetryHandler );
+		if (m_retry_timeout == 0) m_retry_timeout = SetTimer( NULL, 0, (100), (TIMERPROC)_timerRetryHandler );
 	}
 }
 void CALLBACK vncServer::_timerRetryHandler( HWND /*hWnd*/, UINT /*uMsg*/, UINT_PTR /*idEvent*/, DWORD /*dwTime*/ )
@@ -2566,7 +2580,7 @@ void vncServer::_actualTimerRetryHandler()
 	vnclog.Print(LL_INTINFO, VNCLOG("Attempting AutoReconnect....\n"));
 	
 	KillTimer( NULL, m_retry_timeout );
-	m_retry_timeout = 0;
+	
 	
 	if ( m_fAutoReconnect && strlen(m_szAutoReconnectAdr) > 0 && !fShutdownOrdered)
 	{
@@ -2591,10 +2605,12 @@ void vncServer::_actualTimerRetryHandler()
 						// Add the new client to this server
 						// adzm 2009-08-02
 						AddClient(tmpsock, TRUE, TRUE, 0, NULL, m_szAutoReconnectId, m_szAutoReconnectAdr, m_AutoReconnectPort);
+						m_retry_timeout = 0;
 						} else {
 						// Add the new client to this server
 						// adzm 2009-08-02
 						AddClient(tmpsock, TRUE, TRUE, 0, NULL, NULL, m_szAutoReconnectAdr, m_AutoReconnectPort);
+						m_retry_timeout = 0;
 						}
 					}
 					else
@@ -2609,10 +2625,12 @@ void vncServer::_actualTimerRetryHandler()
 								// adzm 2009-07-05 - repeater IDs
 								// Add the new client to this server
 								AddClient(tmpsock, TRUE, TRUE, 0, NULL, m_szAutoReconnectId, m_szAutoReconnectAdr, m_AutoReconnectPort);
+								m_retry_timeout = 0;
 							} else {
 								// Add the new client to this server
 								// adzm 2009-08-02
 								AddClient(tmpsock, TRUE, TRUE, 0, NULL, NULL, m_szAutoReconnectAdr, m_AutoReconnectPort);
+								m_retry_timeout = 0;
 							}
 						} else {
 							delete tmpsock;
@@ -2633,10 +2651,12 @@ void vncServer::_actualTimerRetryHandler()
 							// adzm 2009-07-05 - repeater IDs
 							// Add the new client to this server
 							AddClient(tmpsock, TRUE, TRUE, 0, NULL, m_szAutoReconnectId, m_szAutoReconnectAdr, m_AutoReconnectPort);
+							m_retry_timeout = 0;
 						} else {
 							// Add the new client to this server
 							// adzm 2009-08-02
 							AddClient(tmpsock, TRUE, TRUE, 0, NULL, NULL, m_szAutoReconnectAdr, m_AutoReconnectPort);
+							m_retry_timeout = 0;
 						}
 					} else {
 						delete tmpsock;
@@ -2644,6 +2664,10 @@ void vncServer::_actualTimerRetryHandler()
 					}
 			}
 		} //tempsocket
+	}
+	else
+	{
+		m_retry_timeout = 0;
 	}
 }
 void vncServer::NotifyClients_StateChange(CARD32 state, CARD32 value)
@@ -2674,6 +2698,25 @@ void vncServer::NotifyClients_StateChange(CARD32 state, CARD32 value)
         client->Record_SendServerStateUpdate(state, value);
 	}
 }
+
+void vncServer::StopReconnectAll()
+{
+	omni_mutex_lock l(m_clientsLock);
+    vncClient *client = NULL;
+
+    vncClientList::iterator i;
+
+	for (i = m_authClients.begin(); i != m_authClients.end(); i++)
+	{
+		// Is this the right client?
+        client = GetClient(*i);
+        if (!client)
+            continue;
+
+        client->m_Autoreconnect=false;
+	}
+}
+
 void vncServer::SetFTTimeout(int msecs)
 {
     m_ftTimeout = msecs;

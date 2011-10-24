@@ -126,14 +126,14 @@ public:
 	//     AND no changed or copied updates intersect it
 	virtual BOOL UpdateWanted() {
 		omni_mutex_lock l(GetUpdateLock());
-#ifdef _DEBUG
+/*#ifdef _DEBUG
 										char			szText[256];
 										sprintf(szText," UpdateWanted %i \n",!m_incr_rgn.is_empty() &&
 											m_incr_rgn.intersect(m_update_tracker.get_changed_region()).is_empty() &&
 											m_incr_rgn.intersect(m_update_tracker.get_cached_region()).is_empty() &&
 											m_incr_rgn.intersect(m_update_tracker.get_copied_region()).is_empty());
 										OutputDebugString(szText);		
-#endif
+#endif*/
 		return  !m_incr_rgn.is_empty() &&
 			m_incr_rgn.intersect(m_update_tracker.get_changed_region()).is_empty() &&
 			m_incr_rgn.intersect(m_update_tracker.get_cached_region()).is_empty() &&
@@ -386,6 +386,7 @@ public:
 	//int sizearray[rfbEncodingZRLE+1][31];
 	//int Totalsend;
 	BOOL client_settings_passed;
+	bool		m_Autoreconnect;
 
 	// Internal stuffs
 protected:
@@ -582,6 +583,10 @@ public:
 	// The main thread function
 	virtual void run(void *arg);
 	bool m_autoreconnectcounter_quit;
+
+	UINT m_AutoReconnectPort;
+	char m_szAutoReconnectAdr[255];
+	char m_szAutoReconnectId[MAX_PATH];
 
 protected:
 	virtual ~vncClientThread();

@@ -817,7 +817,7 @@ vncService::PostAddNewClient(unsigned long ipaddress, unsigned short port)
 	if (!PostToWinVNC(MENU_ADD_CLIENT_MSG, (WPARAM)port, (LPARAM)ipaddress))
 	{
 
-		//MessageBox(NULL, sz_ID_NO_EXIST_INST, szAppName, MB_ICONEXCLAMATION | MB_OK);
+		//MessageBoxSecure(NULL, sz_ID_NO_EXIST_INST, szAppName, MB_ICONEXCLAMATION | MB_OK);
 
 		//Little hack, seems postmessage fail in some cases on some os.
 		//permission proble
@@ -837,7 +837,7 @@ vncService::PostAddNewClientInit(unsigned long ipaddress, unsigned short port)
 	if (!PostToWinVNC(MENU_ADD_CLIENT_MSG_INIT, (WPARAM)port, (LPARAM)ipaddress))
 	{
 
-		//MessageBox(NULL, sz_ID_NO_EXIST_INST, szAppName, MB_ICONEXCLAMATION | MB_OK);
+		//MessageBoxSecure(NULL, sz_ID_NO_EXIST_INST, szAppName, MB_ICONEXCLAMATION | MB_OK);
 
 		//Little hack, seems postmessage fail in some cases on some os.
 		//permission proble
@@ -881,6 +881,19 @@ vncService::PostAddAutoConnectClient( const char* pszId )
 //		delete pszId;
 	}
 	return ( PostToWinVNC(MENU_AUTO_RECONNECT_MSG, 0, (LPARAM)aId) );
+}
+
+BOOL
+vncService::PostAddStopConnectClient()
+{
+	return ( PostToWinVNC(MENU_STOP_RECONNECT_MSG, 0, 0) );
+}
+
+BOOL
+vncService::PostAddStopConnectClientAll()
+{
+	PostToWinVNC(MENU_STOP_RECONNECT_MSG, 0, 0); // stop running reconnect in server class
+	return ( PostToWinVNC(MENU_STOP_ALL_RECONNECT_MSG, 0, 0) ); //disable reconnect for tunning clients
 }
 
 BOOL

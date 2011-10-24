@@ -17,9 +17,9 @@ INCLUDE(CheckFunctionExists)
 INCLUDE(FindPkgConfig)
 INCLUDE(Qt4Hacks)
 
-SET(VERSION_MAJOR "1")
-SET(VERSION_MINOR "9")
-SET(VERSION_PATCH "6")
+SET(VERSION_MAJOR "2")
+SET(VERSION_MINOR "0")
+SET(VERSION_PATCH "0")
 SET(VERSION_SUFFIX "")
 SET(VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 IF(VERSION_SUFFIX)
@@ -136,6 +136,7 @@ IF(ITALC_BUILD_WIN32)
 ELSE(ITALC_BUILD_WIN32)
 	FIND_PACKAGE(OpenSSL REQUIRED)
 ENDIF(ITALC_BUILD_WIN32)
+FIND_PACKAGE(PNG)
 
 # find X libraries
 IF(NOT ITALC_BUILD_WIN32)
@@ -212,10 +213,13 @@ ENDIF(ITALC_BUILD_WIN32)
 ADD_DEFINITIONS(-D'LIB_DIR="${CMAKE_INSTALL_PREFIX}/${LIB_DIR}/"' -D'PLUGIN_DIR="${CMAKE_INSTALL_PREFIX}/${LIB_DIR}/italc/"')
 ADD_DEFINITIONS(-DLIBVNCSERVER_HAVE_LIBZ)
 ADD_DEFINITIONS(-DLIBVNCSERVER_HAVE_LIBJPEG)
+IF(PNG_FOUND)
+	ADD_DEFINITIONS(-DLIBVNCSERVER_HAVE_LIBPNG)
+ENDIF(PNG_FOUND)
 
-INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/lib/include ${ZLIB_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/lib/include ${ZLIB_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${PNG_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
 LINK_DIRECTORIES(${CMAKE_INSTALL_PREFIX}/lib ${CMAKE_BINARY_DIR}/lib)
-LINK_LIBRARIES(${QT_LIBRARIES} ${ZLIB_LIBRARIES} ${JPEG_LIBRARIES} ${OPENSSL_LIBRARIES})
+LINK_LIBRARIES(${QT_LIBRARIES} ${ZLIB_LIBRARIES} ${JPEG_LIBRARIES} ${PNG_LIBRARIES} ${OPENSSL_LIBRARIES})
 
 # make sub-directories
 ADD_SUBDIRECTORY(lib)
@@ -261,9 +265,9 @@ ADD_CUSTOM_TARGET(dist
 			COMMAND make clean
 			COMMAND rm -rf ${TMP}
 			COMMAND mkdir -p ${TMP}
-			COMMAND cp AUTHORS build_mingw32 ChangeLog CMakeLists.txt COPYING INSTALL italcconfig.h.in italc.spec.in iTALC.nsi.in README TODO ${TMP}
-			COMMAND cp -r cmake doc lib ica ima imc ${TMP}
-			COMMAND rm -rf `find ${TMP} -type d -name ".svn"`  `find ${TMP} -name cmake_install.cmake` `find ${TMP} -name Makefile` `find ${TMP} -type d -name CMakeFiles` ${TMP}/CMakeCache.txt
+			COMMAND cp AUTHORS build_mingw* ChangeLog CMakeLists.txt COPYING INSTALL italcconfig.h.in italc.spec.in iTALC.nsi.in README* TODO ${TMP}
+			COMMAND cp -r cmake contrib doc lib ica ima imc nsis ${TMP}
+			COMMAND rm -rf `find ${TMP} -type d -name ".svn"`  `find ${TMP} -name cmake_install.cmake` `find ${TMP} -name Makefile` `find ${TMP} -type d -name CMakeFiles` ${TMP}/CMakeCache.txt `find ${TMP} -name "*.depends"` ${TMP}/ima/data/italc ${TMP}/ima/data/italc.desktop
 			COMMAND tar cjf italc-${VERSION}.tar.bz2 ${TMP}
 			COMMAND rm -rf ${TMP})
 
@@ -275,13 +279,15 @@ ADD_CUSTOM_TARGET(win-nsi
 			COMMAND mkdir -p ${TMP}
 			COMMAND cp lib/ItalcCore.dll ica/ica.exe ica/win32/vnchooks.dll ica/win32/authSSP.dll ima/italc.exe imc/imc.exe ${TMP}
 			COMMAND ${STRIP} ${TMP}/*
-			COMMAND cp ${CMAKE_SOURCE_DIR}/doc/*.txt ${TMP}
+			COMMAND cp -r ${CMAKE_SOURCE_DIR}/doc ${TMP}
+			COMMAND cp -r ${CMAKE_SOURCE_DIR}/contrib ${TMP}
 			COMMAND cp ${CMAKE_SOURCE_DIR}/COPYING ${TMP}
 			COMMAND cp ${CMAKE_SOURCE_DIR}/COPYING ${TMP}/LICENSE.TXT
 			COMMAND cp ${CMAKE_SOURCE_DIR}/README ${TMP}/README.TXT
 			COMMAND todos ${TMP}/*.txt ${TMP}/*.TXT
 			COMMAND makensis iTALC.nsi
-			COMMAND rm -rf ${TMP})
+			#COMMAND rm -rf ${TMP}
+		)
 
 
 #

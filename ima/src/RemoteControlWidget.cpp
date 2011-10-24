@@ -1,7 +1,7 @@
 /*
  *  RemoteControlWidget.cpp - widget containing a VNC-view and controls for it
  *
- *  Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ *  Copyright (c) 2006-2011 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  *  This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -46,7 +46,7 @@ RemoteControlWidgetToolBar::RemoteControlWidgetToolBar(
 	m_showHideTimeLine(),
 	m_iconStateTimeLine(),
 	m_connecting( false ),
-	m_icon( FastQImage( QImage( ":/resources/logo.png" ) ).
+	m_icon( FastQImage( QImage( ":/resources/icon64.png" ) ).
 					scaled( QSize( 48, 48 ) ) ),
 	m_iconGray( FastQImage( m_icon ).toGray().darken( 50 ) )
 {
@@ -304,6 +304,8 @@ RemoteControlWidget::RemoteControlWidget( const QString &host,
 
 RemoteControlWidget::~RemoteControlWidget()
 {
+	delete m_coreConnection;
+	delete m_vncView;
 }
 
 

@@ -2,7 +2,7 @@
  * ItalcConfiguration.h - a Configuration object storing system wide
  *                        configuration values
  *
- * Copyright (c) 2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2010-2011 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -47,6 +47,7 @@ public:
 #define FOREACH_ITALC_CONFIG_PROPERTY(OP)												\
 		/* iTALC Service */																\
 		OP( ItalcConfiguration, ItalcCore::config, BOOL, isTrayIconHidden, setTrayIconHidden, "HideTrayIcon", "Service" );			\
+		OP( ItalcConfiguration, ItalcCore::config, BOOL, lockWithDesktopSwitching, setLockWithDesktopSwitching, "LockWithDesktopSwitching", "Service" );			\
 		OP( ItalcConfiguration, ItalcCore::config, BOOL, autostartService, setServiceAutostart, "Autostart", "Service" );			\
 		OP( ItalcConfiguration, ItalcCore::config, STRING, serviceArguments, setServiceArguments, "Arguments", "Service" );			\
 		/* Logging */																	\
@@ -69,6 +70,7 @@ public:
 		OP( ItalcConfiguration, ItalcCore::config, INT, demoServerPort, setDemoServerPort, "DemoServerPort", "Network" );			\
 		OP( ItalcConfiguration, ItalcCore::config, BOOL, isHttpServerEnabled, setHttpServerEnabled, "HttpServerEnabled", "Network" );	\
 		OP( ItalcConfiguration, ItalcCore::config, BOOL, isFirewallExceptionEnabled, setFirewallExceptionEnabled, "FirewallExceptionEnabled", "Network" );	\
+		OP( ItalcConfiguration, ItalcCore::config, BOOL, localConnectOnly, setLocalConnectOnly, "LocalConnectOnly", "Network" );					\
 		/* Configuration file paths */													\
 		OP( ItalcConfiguration, ItalcCore::config, STRING, globalConfigurationPath, setGlobalConfigurationPath, "GlobalConfiguration", "Paths" );	\
 		OP( ItalcConfiguration, ItalcCore::config, STRING, personalConfigurationPath, setPersonalConfigurationPath, "PersonalConfiguration", "Paths" );	\
@@ -90,6 +92,7 @@ public:
 	// macro expansion :-(
 public slots:
 	void setTrayIconHidden( bool );
+	void setLockWithDesktopSwitching( bool );
 	void setServiceAutostart( bool );
 	void setServiceArguments( const QString & );
 	void setLogLevel( int );
@@ -107,6 +110,7 @@ public slots:
 	void setDemoServerPort( int );
 	void setHttpServerPort( int );
 	void setFirewallExceptionEnabled( bool );
+	void setLocalConnectOnly( bool );
 	void setHttpServerEnabled( bool );
 	void setGlobalConfigurationPath( const QString & );
 	void setPersonalConfigurationPath( const QString & );

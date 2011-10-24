@@ -2,7 +2,7 @@
  * SystemKeyTrapper.cpp - class for trapping system-keys and -key-sequences
  *                        such as Alt+Ctrl+Del, Alt+Tab etc.
  *
- * Copyright (c) 2006-2009 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ * Copyright (c) 2006-2011 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  * This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -98,7 +98,16 @@ LRESULT CALLBACK TaskKeyHookLL( int nCode, WPARAM wp, LPARAM lp )
 		}
 		else if( pkh->vkCode == VK_LWIN || pkh->vkCode == VK_RWIN )
 		{
-			key = SystemKeyTrapper::MetaKey;
+			pressed.removeAll( SystemKeyTrapper::SuperKeyDown );
+			pressed.removeAll( SystemKeyTrapper::SuperKeyUp );
+			if( wp == WM_KEYDOWN )
+			{
+				key = SystemKeyTrapper::SuperKeyDown;
+			}
+			else
+			{
+				key = SystemKeyTrapper::SuperKeyUp;
+			}
 		}
 		else if( pkh->vkCode == VK_DELETE && bCtrlKeyDown &&
 						pkh->flags && LLKHF_ALTDOWN )
@@ -184,7 +193,8 @@ void enableStickyKeys( bool _enable )
 
 SystemKeyTrapper::SystemKeyTrapper( bool _enabled ) :
 	QObject(),
-	m_enabled( false )
+	m_enabled( false ),
+	m_taskBarHidden( false )
 {
 	setEnabled( _enabled );
 }
@@ -195,21 +205,47 @@ SystemKeyTrapper::SystemKeyTrapper( bool _enabled ) :
 SystemKeyTrapper::~SystemKeyTrapper()
 {
 	setEnabled( false );
+	if( m_taskBarHidden )
+	{
+		setTaskBarHidden( false );
+	}
 }
 
 
 
 
-void SystemKeyTrapper::setEnabled( bool _on )
+void SystemKeyTrapper::setTaskBarHidden( bool on )
 {
-	if( _on == m_enabled )
+	m_taskBarHidden = on;
+#ifdef ITALC_BUILD_WIN32
+	if( on )
+	{
+		EnableWindow( FindWindow( "Shell_traywnd", NULL ), false );
+		ShowWindow( FindWindow( "Shell_traywnd", NULL ), SW_HIDE );
+
+	}
+	else
+	{
+		EnableWindow( FindWindow( "Shell_traywnd", NULL ), true );
+		ShowWindow( FindWindow( "Shell_traywnd", NULL ), SW_NORMAL );
+	}
+#endif
+}
+
+
+
+
+void SystemKeyTrapper::setEnabled( bool on )
+{
+	if( on == m_enabled )
 	{
 		return;
 	}
 
 	s_refCntMutex.lock();
-	m_enabled = _on;
-	if( _on )
+
+	m_enabled = on;
+	if( on )
 	{
 #ifdef ITALC_BUILD_WIN32
 		if( !s_refCnt )
@@ -227,10 +263,6 @@ void SystemKeyTrapper::setEnabled( bool _on )
 			}
 
 			enableStickyKeys( false );
-
-			EnableWindow( FindWindow( "Shell_traywnd", NULL ),
-									false );
-			ShowWindow( FindWindow( "Shell_traywnd", NULL ), SW_HIDE );
 
 			if( !Inject() )
 			{
@@ -273,15 +305,12 @@ void SystemKeyTrapper::setEnabled( bool _on )
 			UnhookWindowsHookEx( g_hHookKbdLL );
 			g_hHookKbdLL = NULL;
 
-			enableStickyKeys( true );
-			EnableWindow( FindWindow( "Shell_traywnd", NULL ),
-									true );
-
-			ShowWindow( FindWindow( "Shell_traywnd", NULL ), SW_NORMAL );
 			if( !Eject() )
 			{
 				qWarning( "SystemKeyTrapper: Eject() failed");
 			}
+
+			enableStickyKeys( true );
 		}
 #endif
 #ifdef ITALC_BUILD_LINUX
@@ -300,21 +329,23 @@ void SystemKeyTrapper::setEnabled( bool _on )
 
 
 
-void SystemKeyTrapper::disableAllKeys( bool _on )
+void SystemKeyTrapper::setAllKeysDisabled( bool on )
 {
-	__disable_all_keys = _on;
+	__disable_all_keys = on;
 }
 
 
 
 
-void SystemKeyTrapper::checkForTrappedKeys( void )
+void SystemKeyTrapper::checkForTrappedKeys()
 {
 	QMutexLocker m( &__trapped_keys_mutex );
 
 	while( !__trapped_keys.isEmpty() )
 	{
 		unsigned int key = 0;
+		bool toggle = true;
+		bool stateToSet = false;
 		switch( __trapped_keys.front() )
 		{
 			case None: break;
@@ -324,13 +355,21 @@ void SystemKeyTrapper::checkForTrappedKeys( void )
 			case AltSpace: key = XK_KP_Space; break;
 			case AltF4: key = XK_F4; break;
 			case CtrlEsc: key = XK_Escape; break;
-			case MetaKey: key = XK_Meta_L; break;
+			case SuperKeyDown: key = XK_Super_L; toggle = false; stateToSet = true; break;
+			case SuperKeyUp: key = XK_Super_L; toggle = false; stateToSet = false; break;
 		}
 
 		if( key )
 		{
-			emit keyEvent( key, true );
-			emit keyEvent( key, false );
+			if( toggle )
+			{
+				emit keyEvent( key, true );
+				emit keyEvent( key, false );
+			}
+			else
+			{
+				emit keyEvent( key, stateToSet );
+			}
 		}
 
 		__trapped_keys.removeFirst();

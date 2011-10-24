@@ -1,7 +1,7 @@
 /*
  *  LockWidget.cpp - widget for locking a client
  *
- *  Copyright (c) 2006-2010 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
+ *  Copyright (c) 2006-2011 Tobias Doerffel <tobydox/at/users/dot/sf/dot/net>
  *
  *  This file is part of iTALC - http://italc.sourceforge.net
  *
@@ -70,15 +70,17 @@ LockWidget::LockWidget( Modes _mode ) :
 	m_mode( _mode ),
 	m_sysKeyTrapper()
 {
-	m_sysKeyTrapper.disableAllKeys( true );
+	m_sysKeyTrapper.setAllKeysDisabled( true );
+	m_sysKeyTrapper.setTaskBarHidden( true );
+
 	setWindowTitle( tr( "screen lock" ) );
 	setWindowIcon( QIcon( ":/resources/icon32.png" ) );
-	setCursor( Qt::BlankCursor );
 	showFullScreen();
 	move( 0, 0 );
-	setFixedSize( QApplication::desktop()->screenGeometry( this ).size() );
+	//setFixedSize( QApplication::desktop()->screenGeometry( this ).size() );
+	setFixedSize( qApp->desktop()->size() );
+	setCursor( Qt::BlankCursor );
 	LocalSystem::activateWindow( this );
-	//setFixedSize( qApp->desktop()->size() );
 	setFocusPolicy( Qt::StrongFocus );
 	setFocus();
 	grabMouse();
@@ -107,6 +109,7 @@ LockWidget::~LockWidget()
 		SystemParametersInfo( __ss_set_list[x], __ss_val[x], NULL, 0 );
 	}
 #endif
+	m_sysKeyTrapper.setAllKeysDisabled( false );
 }
 
 

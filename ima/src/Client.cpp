@@ -297,4 +297,4 @@ Client::States Client::currentState() const
 	return State_Inactive;
 }
 
-
+*/

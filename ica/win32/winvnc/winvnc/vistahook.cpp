@@ -102,13 +102,13 @@ vncDesktopThread::Handle_Ringbuffer(mystruct *ringbuffer,rfb::Region2D &rgncache
 				rect = rect.intersect(m_desktop->m_Cliprect);
 				if (!rect.is_empty())
 				{
-#ifdef _DEBUG
+/*#ifdef _DEBUG
 					char			szText[256];
 					DWORD error=GetLastError();
 					sprintf(szText,"REctXXXXXXXXXXX %i %i %i %i  \n",rect.tl.x,rect.br.x,rect.tl.y,rect.br.y);
 					SetLastError(0);
 					OutputDebugString(szText);		
-	#endif
+	#endif*/
 					returnvalue=true;
 					rgncache.assign_union(rect);
 				}
@@ -277,7 +277,7 @@ DWORD WINAPI Cadthread(LPVOID lpParam)
 					}
 					if (!ISUACENabled() && !IsSoftwareCadEnabled())
 					{
-						DWORD result=MessageBox(NULL,"UAC is Disable, make registry changes to allow cad","Warning",MB_YESNO);
+						DWORD result=MessageBoxSecure(NULL,"UAC is Disable, make registry changes to allow cad","Warning",MB_YESNO);
 						if (result==IDYES)
 						{
 							HANDLE hProcess,hPToken;
@@ -321,7 +321,7 @@ DWORD WINAPI Cadthread(LPVOID lpParam)
 					}
 					if (ISUACENabled() && IsSoftwareCadEnabled())
 					{
-						DWORD result=MessageBox(NULL,"UAC is Enablde, make registry changes to allow cad","Warning",MB_YESNO);
+						DWORD result=MessageBoxSecure(NULL,"UAC is Enablde, make registry changes to allow cad","Warning",MB_YESNO);
 						if (result==IDYES)
 						{
 							HANDLE hProcess,hPToken;
@@ -368,7 +368,7 @@ DWORD WINAPI Cadthread(LPVOID lpParam)
 				else*/
 					if( vncService::RunningAsService() &&!IsSoftwareCadEnabled())
 					{
-						DWORD result=MessageBox(NULL,"UAC is Disable, make registry changes to allow cad","Warning",MB_YESNO);
+						DWORD result=MessageBoxSecure(NULL,"UAC is Disable, make registry changes to allow cad","Warning",MB_YESNO);
 						if (result==IDYES)
 							{
 								HANDLE hProcess,hPToken;

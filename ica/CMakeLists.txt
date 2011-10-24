@@ -127,6 +127,7 @@ IF(ITALC_BUILD_WIN32)
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncListDlg.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/stdhdrs.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncEncodeUltra.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncEncodeUltra2.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncsockconnect.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncntlm.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/win32/winvnc/winvnc/vncinsthandler.cpp
@@ -171,9 +172,10 @@ ENDIF(ITALC_BUILD_WIN64)
 ADD_DEFINITIONS(-DBUILD_ICA)
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/x11/libvncclient)
-LINK_LIBRARIES(ItalcCore -lpthread)
+LINK_LIBRARIES(-lpthread)
 
 ADD_EXECUTABLE(ica ${ica_SOURCES} ${ica_INCLUDES} ${ica_MOC_out} ${ica_RCC_out} ${x11vnc_SOURCES} ${platform_SOURCES} ${WINRC})
+TARGET_LINK_LIBRARIES(ica ItalcCore)
 
 ADD_DEPENDENCIES(ica JavaViewer)
 

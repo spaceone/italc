@@ -106,6 +106,7 @@ public:
 	virtual void KillClient(LPSTR szClientName); // sf@2002
 	virtual void TextChatClient(LPSTR szClientName); // sf@2002
 	bool IsUltraVncViewer();
+	bool AreThereMultipleViewers();
 
 	virtual UINT AuthClientCount();
 	virtual UINT UnauthClientCount();
@@ -437,6 +438,9 @@ public:
 	int GetSocketKeepAliveTimeout() { return m_socketKeepAliveTimeout; }
 
 	void TriggerUpdate();
+	UINT				m_retry_timeout;
+	bool OS_Shutdown;
+	void StopReconnectAll();
 
 protected:
 	// The vncServer UpdateTracker class
@@ -494,7 +498,6 @@ protected:
 	UINT				m_querytimeout;
 	BOOL				m_queryifnologon;
  	UINT				m_idle_timeout;
-	UINT				m_retry_timeout;
 
 	BOOL				m_remove_wallpaper;
 	// adzm - 2010-07 - Disable more effects or font smoothing
