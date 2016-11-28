@@ -485,7 +485,7 @@ const QImage ItalcVncConnection::image( int x, int y, int w, int h ) const
 
 	if( w == 0 || h == 0 ) // full image requested
 	{
-		return m_image;
+		return m_image.copy(m_image.rect());
 	}
 	return m_image.copy( x, y, w, h );
 }
